@@ -1,5 +1,6 @@
 package com.anasexpenses.budget.ui.home
 
+import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,10 +17,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -35,6 +39,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -73,6 +79,9 @@ fun HomeScreen(
         (-24..12).map { now.plusMonths(it.toLong()) }.reversed()
     }
 
+    val context = LocalContext.current
+    val appName = stringResource(R.string.app_name)
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         floatingActionButton = {
@@ -100,7 +109,30 @@ fun HomeScreen(
                 Text(
                     text = stringResource(R.string.home_title),
                     style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.weight(1f),
                 )
+                IconButton(
+                    onClick = {
+                        val text = HomeShareTextBuilder.build(
+                            appName = appName,
+                            monthLabel = selectedMonth.format(monthFormatter),
+                            rows = rows,
+                        )
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, text)
+                            putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.home_share_subject))
+                        }
+                        context.startActivity(
+                            Intent.createChooser(send, context.getString(R.string.home_share_chooser)),
+                        )
+                    },
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = stringResource(R.string.home_share_summary),
+                    )
+                }
                 TextButton(onClick = { monthPickerOpen = true }) {
                     Text(selectedMonth.format(monthFormatter))
                 }
@@ -262,6 +294,24 @@ private fun CategoryRowSwitch(
 }
 
 @Composable
+private fun categoryCardContainerColor(row: CategorySpendRow): Color {
+    val scheme = MaterialTheme.colorScheme
+    val c = row.category
+    if (c.excludedFromSpend || c.monthlyTargetMilliJod <= 0L) {
+        return scheme.surfaceVariant
+    }
+    val target = c.monthlyTargetMilliJod
+    val spent = row.spentMilliJod.coerceAtLeast(0L)
+    val utilization = spent.toFloat() / target.toFloat()
+    return when {
+        utilization >= 1f -> scheme.errorContainer
+        utilization >= 0.85f -> scheme.tertiaryContainer
+        utilization >= 0.70f -> scheme.secondaryContainer
+        else -> scheme.primaryContainer
+    }
+}
+
+@Composable
 private fun CategoryCard(row: CategorySpendRow) {
     val target = row.category.monthlyTargetMilliJod
     val spent = row.spentMilliJod.coerceAtLeast(0L)
@@ -270,7 +320,13 @@ private fun CategoryCard(row: CategorySpendRow) {
     } else {
         0f
     }
-    Card(modifier = Modifier.fillMaxWidth()) {
+    val cardColors = CardDefaults.cardColors(
+        containerColor = categoryCardContainerColor(row),
+    )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = cardColors,
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

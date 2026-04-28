@@ -25,6 +25,9 @@
     <string name="home_month_picker_title">Budget month</string>
     <string name="home_rollover_title">Copy categories?</string>
     <string name="home_rollover_body">No budgets for %1$s yet. Copy categories and targets from %2$s?</string>
+    <string name="home_share_summary">Share summary</string>
+    <string name="home_share_chooser">Share budget summary</string>
+    <string name="home_share_subject">Budget summary</string>
     <string name="home_add_category">Add category</string>
     <string name="home_add_category_title">New category</string>
     <string name="home_spent_vs_target">Spent %1$s / %2$s JOD</string>

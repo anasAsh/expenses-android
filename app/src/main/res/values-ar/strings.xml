@@ -11,6 +11,9 @@
     <string name="category_target_jod_label">الهدف الشهري (دينار)</string>
     <string name="onboarding_finish">ابدأ الميزانية</string>
     <string name="home_title">هذا الشهر</string>
+    <string name="home_share_summary">مشاركة الملخص</string>
+    <string name="home_share_chooser">مشاركة ملخص الميزانية</string>
+    <string name="home_share_subject">ملخص الميزانية</string>
     <string name="home_add_category">إضافة فئة</string>
     <string name="transactions_title">المعاملات</string>
     <string name="settings_title">الإعدادات</string>
