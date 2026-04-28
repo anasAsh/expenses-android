@@ -28,6 +28,7 @@
     <string name="home_share_summary">Share summary</string>
     <string name="home_share_chooser">Share budget summary</string>
     <string name="home_share_subject">Budget summary</string>
+    <string name="home_unassigned_line">Unassigned spend: %1$s JOD</string>
     <string name="home_add_category">Add category</string>
     <string name="home_add_category_title">New category</string>
     <string name="home_spent_vs_target">Spent %1$s / %2$s JOD</string>
@@ -38,6 +39,8 @@
     <string name="manual_entry_add">Add manual</string>
     <string name="assign_category_title">Assign category</string>
     <string name="needs_review_badge">Review</string>
+    <string name="transaction_needs_category">Needs category</string>
+    <string name="transaction_unassigned">Unassigned</string>
     <string name="rule_create_future">Remember category for this merchant</string>
     <string name="rule_back_apply_month">Apply to uncategorized this month</string>
 

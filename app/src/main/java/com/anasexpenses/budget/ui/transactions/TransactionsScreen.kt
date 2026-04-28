@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -58,13 +59,13 @@ fun TransactionsScreen(
     var assignTxnId by remember { mutableLongStateOf(-1L) }
     var assignCatId by remember { mutableLongStateOf(-1L) }
     var createRule by remember { mutableStateOf(true) }
-    var backApply by remember { mutableStateOf(true) }
+    var backApply by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         floatingActionButton = {
             FloatingActionButton(onClick = {
-                manualCategoryId = categories.firstOrNull()?.id ?: -1L
+                manualCategoryId = -1L
                 manualOpen = true
             }) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.manual_entry_add))
@@ -84,7 +85,7 @@ fun TransactionsScreen(
                         transaction = t,
                         onClick = {
                             assignTxnId = t.id
-                            assignCatId = t.categoryId ?: categories.firstOrNull()?.id ?: -1L
+                            assignCatId = t.categoryId ?: -1L
                             assignOpen = true
                         },
                     )
@@ -106,6 +107,18 @@ fun TransactionsScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Text(stringResource(R.string.assign_category_title), style = MaterialTheme.typography.labelMedium)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { manualCategoryId = -1L },
+                    ) {
+                        Text(
+                            if (manualCategoryId <= 0L) "● " else "○ ",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(stringResource(R.string.transaction_unassigned))
+                    }
                     categories.forEach { c ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -206,10 +219,19 @@ private fun TransactionRow(
     val dateStr = remember(transaction.dateEpochDay) {
         LocalDate.ofEpochDay(transaction.dateEpochDay).format(DateTimeFormatter.ISO_LOCAL_DATE)
     }
+    val needsCategory =
+        transaction.categoryId == null && transaction.status != TxStatus.DISMISSED
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = if (needsCategory) {
+                MaterialTheme.colorScheme.tertiaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
+        ),
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -219,6 +241,9 @@ private fun TransactionRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(transaction.merchant, style = MaterialTheme.typography.titleMedium)
                 Text(dateStr, style = MaterialTheme.typography.bodySmall)
+                if (needsCategory) {
+                    Text(stringResource(R.string.transaction_needs_category), style = MaterialTheme.typography.labelSmall)
+                }
                 if (transaction.status == TxStatus.NEEDS_REVIEW) {
                     Text(stringResource(R.string.needs_review_badge), style = MaterialTheme.typography.labelSmall)
                 }

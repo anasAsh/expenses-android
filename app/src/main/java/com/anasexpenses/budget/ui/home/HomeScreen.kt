@@ -58,6 +58,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val rows by viewModel.rows.collectAsStateWithLifecycle()
+    val unassignedSpend by viewModel.unassignedSpendMilliJod.collectAsStateWithLifecycle()
     val selectedMonth by viewModel.selectedMonth.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
@@ -111,12 +112,13 @@ fun HomeScreen(
                     style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(
+                    IconButton(
                     onClick = {
                         val text = HomeShareTextBuilder.build(
                             appName = appName,
                             monthLabel = selectedMonth.format(monthFormatter),
                             rows = rows,
+                            unassignedMilliJod = unassignedSpend,
                         )
                         val send = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
@@ -137,6 +139,14 @@ fun HomeScreen(
                     Text(selectedMonth.format(monthFormatter))
                 }
             }
+            Text(
+                text = stringResource(
+                    R.string.home_unassigned_line,
+                    formatJodFromMilli(unassignedSpend.coerceAtLeast(0L)),
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Spacer(modifier = Modifier.height(8.dp))
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp),

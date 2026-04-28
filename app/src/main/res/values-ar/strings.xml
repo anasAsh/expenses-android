@@ -14,6 +14,9 @@
     <string name="home_share_summary">مشاركة الملخص</string>
     <string name="home_share_chooser">مشاركة ملخص الميزانية</string>
     <string name="home_share_subject">ملخص الميزانية</string>
+    <string name="home_unassigned_line">إنفاق غير مصنّف: %1$s دينار</string>
+    <string name="transaction_needs_category">بحاجة لفئة</string>
+    <string name="transaction_unassigned">غير مصنّف</string>
     <string name="home_add_category">إضافة فئة</string>
     <string name="transactions_title">المعاملات</string>
     <string name="settings_title">الإعدادات</string>

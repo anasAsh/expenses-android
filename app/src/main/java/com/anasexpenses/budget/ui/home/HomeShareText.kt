@@ -9,8 +9,13 @@ object HomeShareTextBuilder {
         appName: String,
         monthLabel: String,
         rows: List<CategorySpendRow>,
+        unassignedMilliJod: Long = 0L,
     ): String = buildString {
         appendLine("$appName — $monthLabel")
+        appendLine()
+        appendLine(
+            "Unassigned (no category): ${formatJodFromMilli(unassignedMilliJod.coerceAtLeast(0L))} JOD",
+        )
         appendLine()
 
         if (rows.isEmpty()) {

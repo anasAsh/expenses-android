@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -54,6 +55,16 @@ class HomeViewModel @Inject constructor(
                 }
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Spend in transactions with no category (non-dismissed), signed milli-JOD. */
+    val unassignedSpendMilliJod: StateFlow<Long> =
+        userPreferencesRepository.selectedMonth.flatMapLatest { month ->
+            transactionRepository.observeTransactionsForMonth(month).map { transactions ->
+                transactions
+                    .filter { it.categoryId == null && it.status != TxStatus.DISMISSED }
+                    .sumOf { BudgetRollup.signedAmountMilliJod(it) }
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
 
     fun addCategory(
         name: String,

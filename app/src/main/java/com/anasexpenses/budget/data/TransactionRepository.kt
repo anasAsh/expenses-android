@@ -72,7 +72,7 @@ class TransactionRepository @Inject constructor(
     ) {
         val normalizedMerchant = MerchantNormalizer.normalizedMerchant(fields.merchantRaw)
         val token = MerchantNormalizer.merchantToken(fields.merchantRaw)
-        val categoryId = ruleDao.getByMerchantToken(token)?.categoryId
+        val categoryId: Long? = null
         val status =
             if (confidence >= PrdConstants.CONFIDENCE_AUTO_MIN) TxStatus.AUTO else TxStatus.NEEDS_REVIEW
         val instantMillis = epochMillisFrom(fields.dateEpochDay, fields.timeSecondOfDay, zone)
@@ -131,7 +131,7 @@ class TransactionRepository @Inject constructor(
         val (label, milli) = parsed
         val norm = MerchantNormalizer.normalizedMerchant(label)
         val token = MerchantNormalizer.merchantToken(label)
-        val categoryId = chosenCategoryId ?: ruleDao.getByMerchantToken(token)?.categoryId
+        val categoryId = chosenCategoryId?.takeIf { it > 0L }
         val today = LocalDate.now(zone)
         val now = System.currentTimeMillis()
         val dedupHash = DedupHash.hash(null, milli, epochMillisFrom(today.toEpochDay(), 0, zone), token)
