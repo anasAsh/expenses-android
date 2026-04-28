@@ -10,4 +10,13 @@
     <string name="sms_permission_body">Anas Expenses reads bank SMS on this device to detect card transactions automatically. Messages are parsed on your phone and are not sent to our servers. You can skip this and add expenses manually.</string>
     <string name="sms_permission_grant">Allow SMS</string>
     <string name="sms_permission_skip">Skip — manual entry</string>
+
+    <string name="onboarding_welcome_title">Welcome</string>
+    <string name="onboarding_welcome_body">Set up your first budget category. You can add more later.</string>
+    <string name="onboarding_category_title">First category</string>
+    <string name="category_name_label">Name</string>
+    <string name="category_target_jod_label">Monthly target (JOD)</string>
+    <string name="category_target_invalid">Enter a valid positive amount (up to 3 decimals).</string>
+    <string name="category_excluded_label">Exclude from spend totals (e.g. transfers)</string>
+    <string name="onboarding_finish">Start budgeting</string>
 </resources>
