@@ -160,6 +160,8 @@ class TransactionRepository @Inject constructor(
 
     suspend fun updateTransaction(entity: TransactionEntity) {
         transactionDao.update(entity.copy(updatedAtEpochMillis = System.currentTimeMillis()))
+        val ym = YearMonth.from(LocalDate.ofEpochDay(entity.dateEpochDay))
+        alertCoordinator.refreshAlerts(ym)
     }
 
     suspend fun assignCategoryAndOptionalRule(

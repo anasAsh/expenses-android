@@ -28,12 +28,15 @@ import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.NavType
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.anasexpenses.budget.ui.home.HomeScreen
 import com.anasexpenses.budget.ui.navigation.Route
 import com.anasexpenses.budget.ui.permissions.PostNotificationsPermissionEffect
 import com.anasexpenses.budget.ui.settings.SettingsScreen
+import com.anasexpenses.budget.ui.transactions.TransactionEditScreen
 import com.anasexpenses.budget.ui.transactions.TransactionsScreen
 import com.anasexpenses.budget.ui.onboarding.OnboardingScreen
 import com.anasexpenses.budget.ui.root.RootUiState
@@ -130,7 +133,21 @@ private fun BudgetRootScaffold() {
             modifier = Modifier.padding(innerPadding),
         ) {
             composable(Route.Home.route) { HomeScreen() }
-            composable(Route.Transactions.route) { TransactionsScreen() }
+            composable(Route.Transactions.route) {
+                TransactionsScreen(
+                    onEditTransaction = { id ->
+                        navController.navigate(Route.TransactionEdit.routeWithArgs(id))
+                    },
+                )
+            }
+            composable(
+                route = Route.TransactionEdit.route,
+                arguments = listOf(
+                    navArgument("id") { type = NavType.LongType },
+                ),
+            ) {
+                TransactionEditScreen(onClose = { navController.popBackStack() })
+            }
             composable(Route.Settings.route) { SettingsScreen() }
         }
     }

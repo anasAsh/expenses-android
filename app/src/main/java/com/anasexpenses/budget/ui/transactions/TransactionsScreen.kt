@@ -44,6 +44,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun TransactionsScreen(
     modifier: Modifier = Modifier,
+    onEditTransaction: (Long) -> Unit = {},
     viewModel: TransactionsViewModel = hiltViewModel(),
 ) {
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
@@ -151,6 +152,12 @@ fun TransactionsScreen(
             title = { Text(stringResource(R.string.assign_category_title)) },
             text = {
                 Column {
+                    TextButton(
+                        onClick = {
+                            onEditTransaction(assignTxnId)
+                            assignOpen = false
+                        },
+                    ) { Text(stringResource(R.string.transaction_edit_from_list)) }
                     categories.forEach { c ->
                         Row(
                             modifier = Modifier

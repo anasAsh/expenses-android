@@ -53,4 +53,13 @@
     <string name="settings_parse_pasted_sms">Parse and import</string>
     <string name="settings_paste_ingested">Message processed.</string>
     <string name="settings_paste_empty">Paste text first.</string>
+
+    <string name="transaction_edit_title">Edit transaction</string>
+    <string name="transaction_edit_amount_jod">Amount (JOD)</string>
+    <string name="transaction_edit_date">Date</string>
+    <string name="transaction_edit_date_hint">Format YYYY-MM-DD</string>
+    <string name="transaction_edit_refund">Refund (amount counts negative in budget)</string>
+    <string name="transaction_edit_dismissed">Dismiss (hide from budget)</string>
+    <string name="transaction_edit_save">Save</string>
+    <string name="transaction_edit_from_list">Edit details</string>
 </resources>
