@@ -7,6 +7,7 @@ import com.anasexpenses.budget.data.TransactionRepository
 import com.anasexpenses.budget.data.local.entity.CategoryEntity
 import com.anasexpenses.budget.data.local.entity.TransactionEntity
 import com.anasexpenses.budget.data.local.entity.TxStatus
+import com.anasexpenses.budget.data.preferences.UserPreferencesRepository
 import com.anasexpenses.budget.domain.budget.BudgetRollup
 import com.anasexpenses.budget.domain.money.JodMoney
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -15,6 +16,8 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -26,22 +29,31 @@ data class CategorySpendRow(
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val categoryRepository: CategoryRepository,
-    transactionRepository: TransactionRepository,
+    private val transactionRepository: TransactionRepository,
+    private val userPreferencesRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
-    private val month: YearMonth = YearMonth.now()
+    val selectedMonth: StateFlow<YearMonth> =
+        userPreferencesRepository.selectedMonth.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            YearMonth.now(),
+        )
 
-    val rows: StateFlow<List<CategorySpendRow>> = combine(
-        categoryRepository.observeMonth(month.toString()),
-        transactionRepository.observeTransactionsForMonth(month),
-    ) { categories: List<CategoryEntity>, transactions: List<TransactionEntity> ->
-        categories.map { c ->
-            val spent = transactions
-                .filter { it.categoryId == c.id && it.status != TxStatus.DISMISSED }
-                .sumOf { BudgetRollup.signedAmountMilliJod(it) }
-            CategorySpendRow(c, spent)
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val rows: StateFlow<List<CategorySpendRow>> =
+        userPreferencesRepository.selectedMonth.flatMapLatest { month ->
+            combine(
+                categoryRepository.observeMonth(month.toString()),
+                transactionRepository.observeTransactionsForMonth(month),
+            ) { categories: List<CategoryEntity>, transactions: List<TransactionEntity> ->
+                categories.map { c ->
+                    val spent = transactions
+                        .filter { it.categoryId == c.id && it.status != TxStatus.DISMISSED }
+                        .sumOf { BudgetRollup.signedAmountMilliJod(it) }
+                    CategorySpendRow(c, spent)
+                }
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun addCategory(
         name: String,
@@ -65,8 +77,24 @@ class HomeViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
+            val month = userPreferencesRepository.selectedMonth.first()
             categoryRepository.addCategory(month.toString(), n, milli, excludedFromSpend)
             onResult(true)
+        }
+    }
+
+    /**
+     * Updates the selected budget month. Returns true if the UI should prompt to copy categories
+     * from the previous month.
+     */
+    suspend fun selectMonth(yearMonth: YearMonth): Boolean {
+        userPreferencesRepository.setSelectedMonth(yearMonth)
+        return categoryRepository.shouldOfferRolloverCopy(yearMonth)
+    }
+
+    fun confirmRolloverCopy(targetMonth: YearMonth) {
+        viewModelScope.launch {
+            categoryRepository.rolloverFromPreviousMonth(targetMonth)
         }
     }
 }

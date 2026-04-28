@@ -1,5 +1,6 @@
 package com.anasexpenses.budget.ui.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +41,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.anasexpenses.budget.R
 import com.anasexpenses.budget.domain.money.formatJodFromMilli
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
@@ -45,12 +52,26 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val rows by viewModel.rows.collectAsStateWithLifecycle()
+    val selectedMonth by viewModel.selectedMonth.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+
+    val monthFormatter = remember {
+        DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
+    }
 
     var addOpen by remember { mutableStateOf(false) }
     var categoryName by remember { mutableStateOf("") }
     var targetText by remember { mutableStateOf("") }
     var excluded by remember { mutableStateOf(false) }
     var targetError by remember { mutableStateOf(false) }
+
+    var monthPickerOpen by remember { mutableStateOf(false) }
+    var rolloverTarget by remember { mutableStateOf<YearMonth?>(null) }
+
+    val monthChoices = remember {
+        val now = YearMonth.now()
+        (-24..12).map { now.plusMonths(it.toLong()) }.reversed()
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -71,10 +92,19 @@ fun HomeScreen(
                 .padding(padding)
                 .padding(16.dp),
         ) {
-            Text(
-                text = stringResource(R.string.home_title),
-                style = MaterialTheme.typography.headlineSmall,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.home_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                )
+                TextButton(onClick = { monthPickerOpen = true }) {
+                    Text(selectedMonth.format(monthFormatter))
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -84,6 +114,69 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    if (monthPickerOpen) {
+        AlertDialog(
+            onDismissRequest = { monthPickerOpen = false },
+            title = { Text(stringResource(R.string.home_month_picker_title)) },
+            text = {
+                LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
+                    items(monthChoices, key = { it.toString() }) { ym ->
+                        Text(
+                            text = ym.format(monthFormatter),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    scope.launch {
+                                        val needRollover = viewModel.selectMonth(ym)
+                                        monthPickerOpen = false
+                                        if (needRollover) rolloverTarget = ym
+                                    }
+                                }
+                                .padding(vertical = 12.dp),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { monthPickerOpen = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
+    }
+
+    val rolloverYm = rolloverTarget
+    if (rolloverYm != null) {
+        val prev = rolloverYm.minusMonths(1)
+        AlertDialog(
+            onDismissRequest = { rolloverTarget = null },
+            title = { Text(stringResource(R.string.home_rollover_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.home_rollover_body,
+                        rolloverYm.format(monthFormatter),
+                        prev.format(monthFormatter),
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.confirmRolloverCopy(rolloverYm)
+                        rolloverTarget = null
+                    },
+                ) { Text(stringResource(android.R.string.ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { rolloverTarget = null }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
     }
 
     if (addOpen) {

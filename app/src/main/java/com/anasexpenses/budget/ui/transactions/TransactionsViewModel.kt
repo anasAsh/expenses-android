@@ -6,11 +6,12 @@ import com.anasexpenses.budget.data.CategoryRepository
 import com.anasexpenses.budget.data.TransactionRepository
 import com.anasexpenses.budget.data.local.entity.CategoryEntity
 import com.anasexpenses.budget.data.local.entity.TransactionEntity
+import com.anasexpenses.budget.data.preferences.UserPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.time.YearMonth
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -18,16 +19,21 @@ import kotlinx.coroutines.launch
 class TransactionsViewModel @Inject constructor(
     categoryRepository: CategoryRepository,
     private val transactionRepository: TransactionRepository,
+    userPreferencesRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
-    private val month: YearMonth = YearMonth.now()
-
     val transactions: StateFlow<List<TransactionEntity>> =
-        transactionRepository.observeTransactionsForMonth(month)
+        userPreferencesRepository.selectedMonth
+            .flatMapLatest { month ->
+                transactionRepository.observeTransactionsForMonth(month)
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val categories: StateFlow<List<CategoryEntity>> =
-        categoryRepository.observeMonth(month.toString())
+        userPreferencesRepository.selectedMonth
+            .flatMapLatest { month ->
+                categoryRepository.observeMonth(month.toString())
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun insertManualLine(line: String, categoryId: Long?, onResult: (Boolean) -> Unit) {

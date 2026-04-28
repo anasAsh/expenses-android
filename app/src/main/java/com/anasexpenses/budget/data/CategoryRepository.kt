@@ -37,6 +37,14 @@ class CategoryRepository @Inject constructor(
     suspend fun sumIncludedTargetsMilli(month: String): Long =
         categoryDao.sumTargetsIncludedForMonth(month)
 
+    /** True when [targetMonth] has no categories but the previous month does — offer rollover copy. */
+    suspend fun shouldOfferRolloverCopy(targetMonth: YearMonth): Boolean {
+        val key = targetMonth.toString()
+        if (categoryDao.getByMonth(key).isNotEmpty()) return false
+        val prev = targetMonth.minusMonths(1).toString()
+        return categoryDao.getByMonth(prev).isNotEmpty()
+    }
+
     /** Prefill empty month from previous month (PRD §4.6). */
     suspend fun rolloverFromPreviousMonth(targetMonth: YearMonth) {
         val key = targetMonth.toString()
