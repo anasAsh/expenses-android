@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.anasexpenses.budget.alarm.BudgetAlarmScheduler
 import com.anasexpenses.budget.data.BudgetSeed
 import com.anasexpenses.budget.notifications.BudgetNotificationChannels
 import com.anasexpenses.budget.work.DailyBudgetWorker
@@ -18,6 +19,7 @@ import javax.inject.Inject
 @HiltAndroidApp
 class BudgetApplication : Application() {
     @Inject lateinit var budgetSeed: BudgetSeed
+    @Inject lateinit var budgetAlarmScheduler: BudgetAlarmScheduler
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -31,6 +33,9 @@ class BudgetApplication : Application() {
         )
         applicationScope.launch(Dispatchers.IO) {
             budgetSeed.ensureArabBankEnglishTemplate()
+        }
+        applicationScope.launch {
+            runCatching { budgetAlarmScheduler.scheduleAll() }
         }
     }
 }
