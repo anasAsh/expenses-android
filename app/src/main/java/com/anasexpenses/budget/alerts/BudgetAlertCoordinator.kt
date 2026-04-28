@@ -37,6 +37,8 @@ class BudgetAlertCoordinator @Inject constructor(
             .sortedByDescending { it.monthlyTargetMilliJod }
             .take(5)
 
+        val pendingAlerts = mutableListOf<Triple<Int, String, String>>()
+
         for (c in top) {
             val target = c.monthlyTargetMilliJod
             if (target <= 0L) continue
@@ -63,11 +65,20 @@ class BudgetAlertCoordinator @Inject constructor(
                     ),
                 )
                 val body = "${c.name}: spent ${spent / 1000.0} / ${target / 1000.0} JOD"
-                notifications.showBudgetAlert(
-                    notificationId = stableNotifId(c.id, monthStr, type),
-                    title = tierTitle,
-                    body = body,
-                )
+                val notifId = stableNotifId(c.id, monthStr, type)
+                pendingAlerts.add(Triple(notifId, tierTitle, body))
+            }
+        }
+
+        when {
+            pendingAlerts.isEmpty() -> Unit
+            pendingAlerts.size == 1 -> {
+                val (id, title, body) = pendingAlerts.first()
+                notifications.showBudgetAlert(id, title, body)
+            }
+            else -> {
+                val pairs = pendingAlerts.map { it.second to it.third }
+                notifications.showBudgetAlertDigest(monthStr, pairs)
             }
         }
     }

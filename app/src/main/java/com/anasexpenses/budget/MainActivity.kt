@@ -1,5 +1,6 @@
 package com.anasexpenses.budget
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,7 +22,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -32,6 +38,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
 import com.anasexpenses.budget.ui.home.HomeScreen
 import com.anasexpenses.budget.ui.navigation.Route
 import com.anasexpenses.budget.ui.permissions.PostNotificationsPermissionEffect
@@ -54,6 +61,11 @@ class MainActivity : ComponentActivity() {
                 BudgetAppEntry()
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
     }
 }
 
@@ -81,8 +93,24 @@ private fun BudgetAppEntry() {
 @Composable
 private fun BudgetRootScaffold() {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    val activity = context as ComponentActivity
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+
+    DisposableEffect(lifecycle, navController) {
+        val o = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val i = activity.intent
+                if (i?.action == Intent.ACTION_VIEW) {
+                    navController.handleDeepLink(i)
+                }
+            }
+        }
+        lifecycle.addObserver(o)
+        onDispose { lifecycle.removeObserver(o) }
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -132,8 +160,18 @@ private fun BudgetRootScaffold() {
             startDestination = Route.Home.route,
             modifier = Modifier.padding(innerPadding),
         ) {
-            composable(Route.Home.route) { HomeScreen() }
-            composable(Route.Transactions.route) {
+            composable(
+                route = Route.Home.route,
+                deepLinks = listOf(
+                    navDeepLink { uriPattern = "anasexpenses://app/home" },
+                ),
+            ) { HomeScreen() }
+            composable(
+                route = Route.Transactions.route,
+                deepLinks = listOf(
+                    navDeepLink { uriPattern = "anasexpenses://app/transactions" },
+                ),
+            ) {
                 TransactionsScreen(
                     onEditTransaction = { id ->
                         navController.navigate(Route.TransactionEdit.routeWithArgs(id))
