@@ -380,7 +380,7 @@ Enforces **one notification per (category, month, threshold)** for threshold typ
 - **Currency:** JOD, **3 decimal places** throughout storage and UI.
 - **Permissions:** `READ_SMS` / receive SMS as required by target SDK; runtime permission flow on onboarding.
 - **Google Play:** SMS and Call Log permissions are **restricted**. The app must comply with [Use of SMS or Call Log permission groups](https://support.google.com/googleplay/android-developer/answer/9047303): declare narrow use (financial transaction parsing), in-app disclosure, and **no misuse** as default SMS handler unless product explicitly becomes the default SMS app (not required for `SMS_RECEIVED` listener pattern — follow current Play policy for your integration choice).
-- **Privacy / parsing:** **Local-only** parsing and storage for v1; no server upload unless user opts into **anonymous metrics** (§9) or **cloud backup** (optional).
+- **Privacy / parsing:** **Local-only** parsing and storage for v1; no server upload unless user opts into **anonymous metrics** (§9). **Cloud backup** (e.g. Google Drive AppFolder) is **out of scope until v2** (§12).
 - **Storage:** SQLite via **Room**; optional **SQLCipher** or file encryption with Keystore-wrapped keys for sensitive fields.
 - **Preferences:** DataStore for flags (quiet hours opt-out, backup opt-in).
 - **Background:** **WorkManager** for rollover, summary, periodic predictive evaluation.
@@ -403,7 +403,7 @@ Enforces **one notification per (category, month, threshold)** for threshold typ
 ## 8. MVP Scope
 
 - Android app
-- SMS parsing (**single bank** initially — bank list in §12)
+- SMS parsing (**Arab Bank** only in v1 — template seed + golden corpus in §14)
 - Regex + `BankTemplate` pipeline
 - User-defined monthly categories with rollover prefill
 - Rule-based categorization + user correction → rules
@@ -439,6 +439,7 @@ Enforces **one notification per (category, month, threshold)** for threshold typ
 - Shared household mode
 - iOS companion with manual / share-based ingestion (no background SMS)
 - **Income** field and “spent vs income” snapshot
+- **Cloud backup** (e.g. Google Drive AppFolder JSON export)
 
 ---
 
@@ -448,19 +449,59 @@ Enforces **one notification per (category, month, threshold)** for threshold typ
 
 ---
 
-## 12. Open Questions
+## 12. Product decisions (v1)
 
-Resolve before or during implementation planning:
+### Resolved
 
-1. **Which bank(s)** ship in v1? (Drives `BankTemplate` seeds and QA SMS corpus.)
-2. **SMS languages:** English-only templates at launch, or **English + Arabic** from day one?
-3. **Cloud backup:** Include **Google Drive AppFolder** JSON export in v1, or **pure local** until v2?
-4. **Income:** Confirm out of scope for v1; any need for a minimal “monthly income” number for variance only?
-5. **Thresholds frozen for v1:** Confirm `confidence ≥ 0.85`, dedup **±5 min** / similarity **0.9**, small category **OR** gate (`< 5%` OR `< 30 JOD`), predictive **≥ 110% projected**, top **5** categories for pushes.
+| Topic | Decision |
+|--------|-----------|
+| **Bank(s) in v1** | **Arab Bank** only — drives `BankTemplate` seeds and QA golden SMS corpus (§14). |
+| **SMS template languages** | **English only** at launch. Arabic SMS templates deferred (may follow for same bank). |
+| **Cloud backup** | **Not in v1.** Pure local storage until **v2** (Google Drive AppFolder or equivalent then). Optional SAF/file export can still be evaluated independently of Drive. |
+| **Income** | **Out of scope for v1** — no “monthly income” field; variance vs income is roadmap ([§10](Budget_Tracker_PRD.md)). |
+
+### Frozen for v1 (confirmed)
+
+The following constants are **locked for v1** implementation and QA:
+
+| Constant | Value |
+|----------|--------|
+| SMS parse auto-accept | `confidence ≥ 0.85`; else `needs_review` |
+| Dedup time window | **±5 minutes** |
+| Dedup merchant match | Similarity **≥ 0.9** (with amount + card rules per §4.2.2) |
+| Push suppression (“small” category) | **OR** gate: target **< 5%** of total monthly budget **or** target **< 30 JOD** |
+| Predictive alert trigger | **Projected ≥ 110%** of monthly target ([§4.7.2](Budget_Tracker_PRD.md)) |
+| Push eligibility scope | **Top 5** categories by `monthly_target` ([§4.7.1](Budget_Tracker_PRD.md)) |
 
 ---
 
 ## 13. Internationalization (SMS)
 
-- Initial examples assume **English** SMS bodies. **Arabic** templates are a likely v1 need for Jordanian banks — decision under §12.2.
-- App UI language can be Arabic/English independently of SMS template language set.
+- **v1:** **English** SMS templates only (see §12).
+- **Arabic** templates for Arab Bank (or others): deferred post-launch unless prioritized.
+- App UI language can be Arabic/English independently of SMS template language.
+
+---
+
+## 14. Reference: Arab Bank v1 SMS sample
+
+Use as the canonical golden string for parser tests and `BankTemplate` QA (`bank_id` e.g. `arab_bank`).
+
+**Raw SMS (English):**
+
+```text
+A Trx using Card XXXX4259 from Talabat for JOD 12.410 on 04-Apr-2026 at 13:52 GMT+3. Available balance is JOD 6951.447.
+```
+
+**Expected parse (transaction line):**
+
+| Field | Value |
+|--------|--------|
+| Amount | 12.410 JOD |
+| Merchant | Talabat |
+| Date | 2026-04-04 |
+| Time | 13:52 |
+| Card last 4 | 4259 |
+| Currency | JOD |
+
+**Note:** The trailing **available balance** clause is present for realism; v1 parser may **ignore** balance unless a future PRD adds `available_balance` to the model.
