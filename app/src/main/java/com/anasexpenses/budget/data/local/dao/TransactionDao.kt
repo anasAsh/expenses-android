@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.anasexpenses.budget.data.local.entity.TransactionEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -58,4 +59,28 @@ interface TransactionDao {
         startEpochDay: Long,
         endEpochDay: Long,
     ): Long?
+
+    @Query("SELECT * FROM transactions WHERE id = :id")
+    suspend fun getById(id: Long): TransactionEntity?
+
+    @Update
+    suspend fun update(entity: TransactionEntity)
+
+    @Query("SELECT * FROM transactions WHERE dedup_hash = :hash LIMIT 1")
+    suspend fun findByDedupHash(hash: String): TransactionEntity?
+
+    @Query(
+        """
+        UPDATE transactions SET category_id = :catId, updated_at_epoch_millis = :now
+        WHERE normalized_merchant_token = :token AND category_id IS NULL
+          AND date_epoch_day >= :startDay AND date_epoch_day <= :endDay
+        """,
+    )
+    suspend fun backApplyCategoryForToken(
+        token: String,
+        catId: Long,
+        startDay: Long,
+        endDay: Long,
+        now: Long,
+    ): Int
 }

@@ -4,19 +4,27 @@ import com.anasexpenses.budget.data.local.dao.BankTemplateDao
 import com.anasexpenses.budget.data.local.dao.RuleDao
 import com.anasexpenses.budget.data.local.dao.TransactionDao
 import com.anasexpenses.budget.data.local.entity.BankTemplateEntity
+import com.anasexpenses.budget.data.local.entity.RuleEntity
 import com.anasexpenses.budget.data.local.entity.TransactionEntity
+import com.anasexpenses.budget.data.local.entity.RuleSource
 import com.anasexpenses.budget.data.local.entity.TxSource
 import com.anasexpenses.budget.data.local.entity.TxStatus
 import com.anasexpenses.budget.domain.PrdConstants
+import com.anasexpenses.budget.domain.dedup.DedupHash
 import com.anasexpenses.budget.domain.dedup.DedupMatcher
+import com.anasexpenses.budget.domain.manual.ManualLineParser
 import com.anasexpenses.budget.domain.merchant.MerchantNormalizer
+import com.anasexpenses.budget.domain.time.YearMonthRange
 import com.anasexpenses.budget.domain.time.epochMillisFrom
 import com.anasexpenses.budget.sms.parser.ParseOutcome
 import com.anasexpenses.budget.sms.parser.ParsedBankSms
 import com.anasexpenses.budget.sms.parser.RegexBankSmsParser
+import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
 
 @Singleton
 class TransactionRepository @Inject constructor(
@@ -25,6 +33,13 @@ class TransactionRepository @Inject constructor(
     private val bankTemplateDao: BankTemplateDao,
 ) {
     private val zone: ZoneId get() = ZoneId.systemDefault()
+
+    fun observeTransactionsForMonth(month: YearMonth): Flow<List<TransactionEntity>> {
+        val r = YearMonthRange.epochDayRangeInclusive(month)
+        return transactionDao.observeBetweenDays(r.first, r.last)
+    }
+
+    fun observeNeedsReviewCount(): Flow<Int> = transactionDao.observeNeedsReviewCount()
 
     suspend fun ingestSmsBodies(rawBodies: List<String>) {
         val template = bankTemplateDao.getByBankAndLanguage(BudgetSeed.BANK_ID_ARAB, "en") ?: return
@@ -70,6 +85,13 @@ class TransactionRepository @Inject constructor(
         }
         if (duplicate) return
 
+        val dedupHash = DedupHash.hash(
+            cardLast4 = fields.cardLast4,
+            amountMilliJod = fields.amountMilliJod,
+            instantEpochMillis = instantMillis,
+            merchantToken = token,
+        )
+
         val now = System.currentTimeMillis()
         transactionDao.insert(
             TransactionEntity(
@@ -87,11 +109,92 @@ class TransactionRepository @Inject constructor(
                 isRefund = false,
                 rawSms = rawSms,
                 cardLast4 = fields.cardLast4,
-                dedupHash = null,
+                dedupHash = dedupHash,
                 bankTemplateId = bankTemplateId,
                 createdAtEpochMillis = now,
                 updatedAtEpochMillis = now,
             ),
         )
     }
+
+    suspend fun insertManualLine(
+        rawLine: String,
+        chosenCategoryId: Long?,
+    ): Boolean {
+        val parsed = ManualLineParser.parse(rawLine) ?: return false
+        val (label, milli) = parsed
+        val norm = MerchantNormalizer.normalizedMerchant(label)
+        val token = MerchantNormalizer.merchantToken(label)
+        val categoryId = chosenCategoryId ?: ruleDao.getByMerchantToken(token)?.categoryId
+        val today = LocalDate.now(zone)
+        val now = System.currentTimeMillis()
+        val dedupHash = DedupHash.hash(null, milli, epochMillisFrom(today.toEpochDay(), 0, zone), token)
+        transactionDao.insert(
+            TransactionEntity(
+                amountMilliJod = milli,
+                currency = "JOD",
+                merchant = label,
+                normalizedMerchant = norm,
+                normalizedMerchantToken = token,
+                categoryId = categoryId,
+                dateEpochDay = today.toEpochDay(),
+                timeSecondOfDay = java.time.LocalTime.now(zone).toSecondOfDay(),
+                source = TxSource.MANUAL,
+                confidence = 1f,
+                status = TxStatus.MANUAL,
+                isRefund = false,
+                rawSms = null,
+                cardLast4 = null,
+                dedupHash = dedupHash,
+                bankTemplateId = null,
+                createdAtEpochMillis = now,
+                updatedAtEpochMillis = now,
+            ),
+        )
+        return true
+    }
+
+    suspend fun updateTransaction(entity: TransactionEntity) {
+        transactionDao.update(entity.copy(updatedAtEpochMillis = System.currentTimeMillis()))
+    }
+
+    suspend fun assignCategoryAndOptionalRule(
+        transactionId: Long,
+        categoryId: Long,
+        createRule: Boolean,
+        backApplyUncategorizedSameMonth: Boolean,
+    ) {
+        val t = transactionDao.getById(transactionId) ?: return
+        val token = t.normalizedMerchantToken
+        val now = System.currentTimeMillis()
+        transactionDao.update(
+            t.copy(
+                categoryId = categoryId,
+                updatedAtEpochMillis = now,
+            ),
+        )
+        if (createRule) {
+            ruleDao.insertReplace(
+                RuleEntity(
+                    merchantToken = token,
+                    categoryId = categoryId,
+                    source = RuleSource.USER_CORRECTION,
+                    createdAtEpochMillis = now,
+                ),
+            )
+        }
+        if (backApplyUncategorizedSameMonth) {
+            val ym = YearMonth.from(LocalDate.ofEpochDay(t.dateEpochDay))
+            val range = YearMonthRange.epochDayRangeInclusive(ym)
+            transactionDao.backApplyCategoryForToken(
+                token = token,
+                catId = categoryId,
+                startDay = range.first,
+                endDay = range.last,
+                now = now,
+            )
+        }
+    }
+
+    suspend fun getTransaction(id: Long): TransactionEntity? = transactionDao.getById(id)
 }
