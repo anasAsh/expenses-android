@@ -2,6 +2,7 @@
     <string name="app_name">Anas Expenses</string>
     <string name="nav_home">Home</string>
     <string name="nav_transactions">Transactions</string>
+    <string name="nav_settings">Settings</string>
     <string name="placeholder_home">Budget overview — coming soon.</string>
     <string name="placeholder_transactions">Transactions — coming soon.</string>
 
@@ -36,4 +37,20 @@
     <string name="needs_review_badge">Review</string>
     <string name="rule_create_future">Remember category for this merchant</string>
     <string name="rule_back_apply_month">Apply to uncategorized this month</string>
+
+    <!-- Replace with your hosted privacy policy before Play release. -->
+    <string name="privacy_policy_url">https://example.com/privacy</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_export_db">Export database backup</string>
+    <string name="settings_export_done">Backup saved.</string>
+    <string name="settings_export_failed">Could not write backup.</string>
+    <string name="settings_sms_backfill">Import recent Arab Bank SMS (60 days)</string>
+    <string name="settings_backfill_done">Parsed %1$d messages from inbox.</string>
+    <string name="settings_privacy_policy">Privacy policy (browser)</string>
+    <string name="settings_cloud_planned">Cloud backup (Google Drive) is planned for a later release. This build stores data on your device only.</string>
+    <string name="settings_debug_paste_sms">Debug: parse pasted SMS</string>
+    <string name="settings_paste_sms_hint">Paste one bank SMS body</string>
+    <string name="settings_parse_pasted_sms">Parse and import</string>
+    <string name="settings_paste_ingested">Message processed.</string>
+    <string name="settings_paste_empty">Paste text first.</string>
 </resources>

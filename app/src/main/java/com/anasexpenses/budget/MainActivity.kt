@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -31,6 +32,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.anasexpenses.budget.ui.home.HomeScreen
 import com.anasexpenses.budget.ui.navigation.Route
+import com.anasexpenses.budget.ui.permissions.PostNotificationsPermissionEffect
+import com.anasexpenses.budget.ui.settings.SettingsScreen
 import com.anasexpenses.budget.ui.transactions.TransactionsScreen
 import com.anasexpenses.budget.ui.onboarding.OnboardingScreen
 import com.anasexpenses.budget.ui.root.RootUiState
@@ -65,7 +68,10 @@ private fun BudgetAppEntry() {
             }
         }
         RootUiState.NeedsOnboarding -> OnboardingScreen()
-        RootUiState.Ready -> BudgetRootScaffold()
+        RootUiState.Ready -> {
+            PostNotificationsPermissionEffect()
+            BudgetRootScaffold()
+        }
     }
 }
 
@@ -103,6 +109,18 @@ private fun BudgetRootScaffold() {
                         }
                     },
                 )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    label = { Text(stringResource(R.string.nav_settings)) },
+                    selected = currentDestination?.hierarchy?.any { it.route == Route.Settings.route } == true,
+                    onClick = {
+                        navController.navigate(Route.Settings.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                )
             }
         },
     ) { innerPadding ->
@@ -113,6 +131,7 @@ private fun BudgetRootScaffold() {
         ) {
             composable(Route.Home.route) { HomeScreen() }
             composable(Route.Transactions.route) { TransactionsScreen() }
+            composable(Route.Settings.route) { SettingsScreen() }
         }
     }
 }
