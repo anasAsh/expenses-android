@@ -18,19 +18,19 @@ Resolved — see [PRD §12](Budget_Tracker_PRD.md):
 
 ## 1. Project bootstrap
 
-- Create Android project: Kotlin, minSdk 26+, Compose, Gradle Kotlin DSL, version catalog
-- Add Hilt, Room, Navigation Compose, DataStore, WorkManager, coroutines/Flow
-- App theme, `Application` class, `@HiltAndroidApp`, base navigation graph (shell screens)
-- Release build: R8, no SMS in logcat; Play policy **SMS declaration** + in-app disclosure copy ([PRD §6](Budget_Tracker_PRD.md))
+- [x] Android project: Kotlin, minSdk 26, Compose, Gradle Kotlin DSL, version catalog (`settings.gradle.kts`, `gradle/libs.versions.toml`)
+- [x] Hilt, Room, Navigation Compose, DataStore, WorkManager deps (`app/build.gradle.kts`)
+- [x] App theme (`BudgetTheme`), `BudgetApplication` + `@HiltAndroidApp`, bottom-nav shell (`MainActivity`, Home / Transactions placeholders)
+- [ ] Release: strip SMS from logs in debug variants only if needed; Play **SMS declaration** + in-app disclosure ([PRD §6](Budget_Tracker_PRD.md))
 
 ---
 
 ## 2. Data layer (Room)
 
-- Entities + DAOs: `Transaction`, `Category`, `Rule`, `BankTemplate`, `AlertEvent`, `Card` (optional) per [PRD §5](Budget_Tracker_PRD.md)
-- Indices: `(category_id, date)`, `(normalized_merchant_token, date)`, category `month`, unique `(category_id, month, threshold)` on `AlertEvent`
-- `TransactionRepository` as single write path for inserts/updates (transactions + rule side effects)
-- Derived queries: spend per `(category_id, month)`, uncategorized counts, needs-review queue
+- [x] Entities + DAOs: `Transaction`, `Category`, `Rule`, `BankTemplate`, `AlertEvent` (`Card` deferred) per [PRD §5](Budget_Tracker_PRD.md)
+- [x] Indices: `(category_id, date_epoch_day)`, `(normalized_merchant_token, date_epoch_day)`, category `month`, unique `(category_id, month, threshold_type)` on `AlertEvent`
+- [ ] `TransactionRepository` as single write path for inserts/updates (transactions + rule side effects)
+- [x] Derived queries: spend rollup query on `TransactionDao`; needs-review count flow
 
 ---
 
@@ -48,7 +48,7 @@ Resolved — see [PRD §12](Budget_Tracker_PRD.md):
 
 ## 4. SMS ingestion pipeline
 
-- Seed/migrate **`BankTemplate`** for **`arab_bank`** (Arab Bank), English — validate against [PRD §14](Budget_Tracker_PRD.md) golden SMS
+- [x] Seed **`BankTemplate`** for **`arab_bank`** (English regex in `BudgetSeed`) — validate parser against [PRD §14](Budget_Tracker_PRD.md) golden SMS in tests next
 - `SmsParser`: regex + capture groups → structured result + **confidence** ∈ [0,1]; **≥0.85** → auto, else `needs_review`
 - Reject non-JOD SMS per PRD (or document explicit alternative)
 - `SmsBroadcastReceiver`: `SMS_RECEIVED`, filter senders, offload to background dispatcher

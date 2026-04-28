@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Anas Expenses</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_transactions">Transactions</string>
+    <string name="placeholder_home">Budget overview — coming soon.</string>
+    <string name="placeholder_transactions">Transactions — coming soon.</string>
+</resources>
