@@ -30,6 +30,7 @@ class SmsTransactionReceiver : BroadcastReceiver() {
 
         val pendingResult = goAsync()
         val bodies = SmsIntentReader.bodiesFrom(intent)
+            .filter { ArabBankSmsFilter.likelyArabBankTrx(it) }
         scope.launch(io) {
             try {
                 repository.ingestSmsBodies(bodies)

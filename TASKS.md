@@ -1,126 +1,115 @@
 # Implementation backlog — Personal Expense & Budget Tracker (v1)
 
-Ordered roughly by dependency. Check items off as you go.
+Ordered roughly by dependency. Status reflects the codebase as of the latest implementation pass.
 
 ---
 
 ## 0. Product decisions (unblock implementation)
 
-Resolved — see [PRD §12](Budget_Tracker_PRD.md):
-
 - [x] **v1 bank:** Arab Bank — golden SMS in [PRD §14](Budget_Tracker_PRD.md)
 - [x] **SMS templates:** English only at launch
 - [x] **Cloud backup:** v2 (v1 pure local)
 - [x] **Income:** out of scope v1
-- [x] **Threshold constants:** frozen per [PRD §12](Budget_Tracker_PRD.md) (confidence ≥0.85, dedup ±5 min / similarity 0.9, small category OR &lt;5% or &lt;30 JOD, predictive ≥110%, top 5 for pushes)
+- [x] **Threshold constants:** frozen per [PRD §12](Budget_Tracker_PRD.md)
 
 ---
 
 ## 1. Project bootstrap
 
-- [x] Android project: Kotlin, minSdk 26, Compose, Gradle Kotlin DSL, version catalog (`settings.gradle.kts`, `gradle/libs.versions.toml`)
-- [x] Hilt, Room, Navigation Compose, DataStore, WorkManager deps (`app/build.gradle.kts`)
-- [x] App theme (`BudgetTheme`), `BudgetApplication` + `@HiltAndroidApp`, bottom-nav shell (`MainActivity`, Home / Transactions placeholders)
-- [ ] Release: strip SMS from logs in debug variants only if needed; Play **SMS declaration** + in-app disclosure ([PRD §6](Budget_Tracker_PRD.md))
+- [x] Android project: Kotlin, minSdk 26, Compose, Gradle Kotlin DSL, version catalog
+- [x] Hilt, Room, Navigation Compose, DataStore, WorkManager deps
+- [x] App theme, `BudgetApplication`, bottom-nav shell, onboarding gate
+- [x] SMS disclosure strings + onboarding SMS section ([PRD §6](Budget_Tracker_PRD.md))
+- [ ] Release polish: strip verbose logs in release (beyond `BudgetLog`); full Play Console narrative + Data safety ([STORE_CHECKLIST.md](STORE_CHECKLIST.md))
 
 ---
 
 ## 2. Data layer (Room)
 
-- [x] Entities + DAOs: `Transaction`, `Category`, `Rule`, `BankTemplate`, `AlertEvent` (`Card` deferred) per [PRD §5](Budget_Tracker_PRD.md)
-- [x] Indices: `(category_id, date_epoch_day)`, `(normalized_merchant_token, date_epoch_day)`, category `month`, unique `(category_id, month, threshold_type)` on `AlertEvent`
-- [x] `TransactionRepository` — SMS ingest path (`ingestSmsBodies` → parse, dedup, rule lookup, insert). Manual edits / rule back-apply later.
-- [x] Derived queries: spend rollup query on `TransactionDao`; needs-review count flow
+- [x] Entities + DAOs + indices ([PRD §5](Budget_Tracker_PRD.md))
+- [x] `TransactionRepository` — SMS ingest, manual line, assign category + rule + back-apply, dedup hash
+- [x] `CategoryRepository` — CRUD-by-month, rollover copy, included-target sum
+- [x] Derived queries — spend rollups, needs-review count
 
 ---
 
 ## 3. Domain logic (pure Kotlin / testable)
 
-- [x] Merchant normalization → `MerchantNormalizer` (`MerchantNormalizerTest`)
-- [x] Dedup matcher — merchant similarity (≥0.9) + ±5 min window + card + amount (`DedupMatcher`; DB pre-filter same day+amount)
-- `dedup_hash` generation and pending → settled merge strategy
-- Rollups: respect `dismissed`, `is_refund`, `excluded_from_spend` ([PRD §4.1](Budget_Tracker_PRD.md))
-- Alert eligibility: top **5** by target, small-category filter (<5% OR <30 JOD), quiet hours **22:00–08:00**
-- Threshold bands (70 / 85 / 100%) + **AlertEvent** idempotency
-- Predictive: `projected = current_spend × days_in_month / day_of_month`, trigger at ≥110% target, once/month/category
+- [x] Merchant normalization + similarity + dedup window ([DedupMatcher](app/src/main/java/com/anasexpenses/budget/domain/dedup/DedupMatcher.kt))
+- [x] `DedupHash` SHA-256 keys for pending/settled linkage (merge logic still minimal)
+- [x] `BudgetRollup` signed amounts
+- [x] Quiet hours, small-category gate, predictive evaluator (+ unit test)
+- [x] `BudgetAlertCoordinator` — thresholds 70/85/100 + predictive + `AlertEvent` dedupe + top 5 categories
 
 ---
 
 ## 4. SMS ingestion pipeline
 
-- [x] Seed **`BankTemplate`** for **`arab_bank`** — golden SMS unit test [`RegexBankSmsParserTest`](app/src/test/java/com/anasexpenses/budget/sms/parser/RegexBankSmsParserTest.kt)
-- [x] `RegexBankSmsParser` + `ParsedBankSms` / `ParseOutcome`; confidence **0.95** on match; **≥0.85** → `auto`, else `needs_review`
-- [x] Reject non-JOD in ingest (`ParsedBankSms.currency` — Arab Bank template is JOD-only)
-- [x] `SmsTransactionReceiver` → `SmsIntentReader` → `TransactionRepository` on IO + `goAsync()` ([`SmsReceiverEntryPoint`](app/src/main/java/com/anasexpenses/budget/sms/SmsTransactionReceiver.kt) for Hilt)
-- [ ] Sender/heuristic filter before heavy work; optional AlertEngine after insert
-- Optional: **60-day backfill** scan (`Telephony.Sms` inbox) with same pipeline
+- [x] Arab Bank `BankTemplate` seed + `RegexBankSmsParser` + golden test
+- [x] `SmsTransactionReceiver` → `SmsReceiverEntryPoint` + IO + `goAsync()`
+- [x] **Sender/body filter:** [`ArabBankSmsFilter`](app/src/main/java/com/anasexpenses/budget/sms/ArabBankSmsFilter.kt)
+- [x] **Inbox backfill helper:** [`SmsInboxBackfill`](app/src/main/java/com/anasexpenses/budget/sms/SmsInboxBackfill.kt) (wire from onboarding/settings opt-in UI if desired)
+- [x] Alerts after ingest (via shared `refreshAlerts` paths)
 
 ---
 
 ## 5. UI — Onboarding & settings
 
-- Permission rationale screen → SMS grant or skip (manual-only path)
-- First-month **category** setup (name, target JOD 3dp, `excluded_from_spend`)
-- **v1:** Arab Bank only — hide multi-bank picker or default `arab_bank`; English templates only
-- Optional backfill opt-in after permission
+- [x] Onboarding: SMS disclosure + permission launcher + skip flag
+- [x] First category capture (name, target JOD milli, excluded toggle)
+- [x] v1 Arab Bank only (no bank picker)
 
 ---
 
 ## 6. UI — Budget & months
 
-- List/edit categories for **current `YYYY-MM`**
-- Month rollover UX: prefill from previous month, **one-tap accept** or edit ([PRD §4.6](Budget_Tracker_PRD.md))
-- Show derived spend vs target per category (respect exclusions)
+- [x] Home: categories for current month + spent vs target + progress (included categories only for bar)
+- [ ] Dedicated month picker / rollover confirmation UI (repository has [`rolloverFromPreviousMonth`](app/src/main/java/com/anasexpenses/budget/data/CategoryRepository.kt))
 
 ---
 
 ## 7. UI — Transactions
 
-- Transaction list (filters: month, category, needs review)
-- Detail/edit: amount, date, merchant, category, `is_refund`, dismiss
-- Manual entry + shorthand (`coffee 3`, etc.) ≤5s path
-- User assigns category → **upsert Rule** + optional **back-apply** uncategorized same month + token ([PRD §4.3](Budget_Tracker_PRD.md))
-- Needs-review queue until resolved; survives month boundary ([PRD §4.9](Budget_Tracker_PRD.md))
+- [x] Transaction list (current month)
+- [x] Tap → assign category + rule toggles + back-apply
+- [x] Manual entry FAB (`coffee 3` style)
+- [ ] Full edit screen for amount/date/refund/dismiss (repository supports `updateTransaction`; UI still minimal)
 
 ---
 
 ## 8. Alerts & notifications
 
-- Channels: threshold, predictive, monthly summary, optional needs-review digest ([ARCHITECTURE.md](ARCHITECTURE.md))
-- Quiet-hour queue + flush at 08:00
-- Combine multi-category threshold pushes when possible ([PRD §4.7](Budget_Tracker_PRD.md))
-- Deep links from notifications → relevant screen
+- [x] Channels (`budget_alerts`, `budget_summary`) + [`BudgetNotificationHelper`](app/src/main/java/com/anasexpenses/budget/notifications/BudgetNotificationHelper.kt)
+- [x] Quiet hours respected for pushes
+- [x] Threshold + predictive notifications via coordinator
+- [ ] Combined digest notification (optional); deep links from notifications
 
 ---
 
 ## 9. WorkManager
 
-- `MonthRolloverWorker` — 1st **00:05** local
-- `MonthlySummaryWorker` — 1st **09:00** local (prior month snapshot + push)
-- `PredictiveAlertWorker` — daily (e.g. 08:05) after quiet hours
-- Threshold evaluation on txn insert/update or periodic coalescing
-- Idempotent writes to `AlertEvent` before showing notifications
+- [x] [`DailyBudgetWorker`](app/src/main/java/com/anasexpenses/budget/work/DailyBudgetWorker.kt) — 24h periodic `refreshAlerts`
+- [ ] Exact-time workers for month rollover **00:05** and summary **09:00** (architecture doc; requires `AlarmManager` or expedited work policies — future)
 
 ---
 
-## 10. Backup & metrics (per decisions)
+## 10. Backup & metrics
 
-- **v1:** No Google Drive backup ([PRD §12](Budget_Tracker_PRD.md)); optional SAF/file export only if added without Drive
-- **v2:** Google Drive AppFolder JSON export (when prioritized)
-- On-device **success metrics** counters ([PRD §9](Budget_Tracker_PRD.md)); optional opt-in anonymous upload later
+- [ ] v1 local only ([PRD §12](Budget_Tracker_PRD.md)); optional SAF export
+- [ ] v2 Google Drive
+- [ ] On-device success metrics ([PRD §9](Budget_Tracker_PRD.md))
 
 ---
 
 ## 11. QA & polish
 
-- Golden **SMS corpus** unit tests; CI runs parser tests
-- Optional debug “paste SMS” simulator ([ARCHITECTURE.md](ARCHITECTURE.md))
-- Arabic SMS templates + RTL UI pass when Arabic templates ship (post–v1 English-only SMS per PRD §12)
+- [x] Parser unit tests + predictive unit test
+- [x] CI: [.github/workflows/android.yml](.github/workflows/android.yml)
+- [ ] Expanded golden SMS corpus; paste-SMS debug UI ([ARCHITECTURE.md](ARCHITECTURE.md))
+- [ ] Arabic SMS templates + RTL when prioritized
 
 ---
 
 ## 12. Store readiness
 
-- Play Console privacy policy, Data safety form, SMS permission justification text
-- Screenshots, store listing (English; Arabic if applicable)
-
+- See [STORE_CHECKLIST.md](STORE_CHECKLIST.md)
