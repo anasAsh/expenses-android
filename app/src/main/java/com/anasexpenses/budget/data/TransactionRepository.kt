@@ -1,6 +1,7 @@
 package com.anasexpenses.budget.data
 
 import com.anasexpenses.budget.alerts.BudgetAlertCoordinator
+import com.anasexpenses.budget.data.metrics.AppMetricsRepository
 import com.anasexpenses.budget.data.local.dao.BankTemplateDao
 import com.anasexpenses.budget.data.local.dao.RuleDao
 import com.anasexpenses.budget.data.local.dao.TransactionDao
@@ -33,6 +34,7 @@ class TransactionRepository @Inject constructor(
     private val ruleDao: RuleDao,
     private val bankTemplateDao: BankTemplateDao,
     private val alertCoordinator: BudgetAlertCoordinator,
+    private val appMetricsRepository: AppMetricsRepository,
 ) {
     private val zone: ZoneId get() = ZoneId.systemDefault()
 
@@ -117,6 +119,7 @@ class TransactionRepository @Inject constructor(
                 updatedAtEpochMillis = now,
             ),
         )
+        appMetricsRepository.recordSmsTransactionInserted()
         alertCoordinator.refreshAlerts(YearMonth.from(LocalDate.ofEpochDay(fields.dateEpochDay)))
     }
 
@@ -154,6 +157,7 @@ class TransactionRepository @Inject constructor(
                 updatedAtEpochMillis = now,
             ),
         )
+        appMetricsRepository.recordManualTransactionInserted()
         alertCoordinator.refreshAlerts(YearMonth.from(today))
         return true
     }

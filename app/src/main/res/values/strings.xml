@@ -53,6 +53,8 @@
     <string name="settings_parse_pasted_sms">Parse and import</string>
     <string name="settings_paste_ingested">Message processed.</string>
     <string name="settings_paste_empty">Paste text first.</string>
+    <string name="settings_metrics_title">On-device usage (this install)</string>
+    <string name="settings_metrics_template">SMS-based transactions: %1$s\nManual lines: %2$s</string>
 
     <string name="transaction_edit_title">Edit transaction</string>
     <string name="transaction_edit_amount_jod">Amount (JOD)</string>

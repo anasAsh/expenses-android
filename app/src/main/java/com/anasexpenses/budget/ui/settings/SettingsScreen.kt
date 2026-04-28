@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.anasexpenses.budget.R
 
 @Composable
@@ -34,6 +35,8 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
+    val smsRows by viewModel.smsTransactionRows.collectAsStateWithLifecycle()
+    val manualRows by viewModel.manualTransactionRows.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var pasteBody by remember { mutableStateOf("") }
     var status by remember { mutableStateOf<String?>(null) }
@@ -58,6 +61,15 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.headlineSmall)
+
+        Text(
+            stringResource(R.string.settings_metrics_title),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            stringResource(R.string.settings_metrics_template, smsRows.toString(), manualRows.toString()),
+            style = MaterialTheme.typography.bodyMedium,
+        )
 
         Button(
             onClick = {
