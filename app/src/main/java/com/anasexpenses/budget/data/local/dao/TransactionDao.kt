@@ -12,6 +12,18 @@ interface TransactionDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(entity: TransactionEntity): Long
 
+    /** Narrow duplicate candidates before Kotlin-side similarity + time window (PRD §4.2.2). */
+    @Query(
+        """
+        SELECT * FROM transactions
+        WHERE amount_milli_jod = :amountMilliJod AND date_epoch_day = :dateEpochDay
+        """,
+    )
+    suspend fun findSameDayAndAmount(
+        amountMilliJod: Long,
+        dateEpochDay: Long,
+    ): List<TransactionEntity>
+
     @Query(
         """
         SELECT * FROM transactions

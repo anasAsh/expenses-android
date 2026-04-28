@@ -29,15 +29,15 @@ Resolved — see [PRD §12](Budget_Tracker_PRD.md):
 
 - [x] Entities + DAOs: `Transaction`, `Category`, `Rule`, `BankTemplate`, `AlertEvent` (`Card` deferred) per [PRD §5](Budget_Tracker_PRD.md)
 - [x] Indices: `(category_id, date_epoch_day)`, `(normalized_merchant_token, date_epoch_day)`, category `month`, unique `(category_id, month, threshold_type)` on `AlertEvent`
-- [ ] `TransactionRepository` as single write path for inserts/updates (transactions + rule side effects)
+- [x] `TransactionRepository` — SMS ingest path (`ingestSmsBodies` → parse, dedup, rule lookup, insert). Manual edits / rule back-apply later.
 - [x] Derived queries: spend rollup query on `TransactionDao`; needs-review count flow
 
 ---
 
 ## 3. Domain logic (pure Kotlin / testable)
 
-- Merchant normalization → `normalized_merchant` + `normalized_merchant_token`
-- String similarity for dedup (≥0.9) + ±5 min window + amount + `card_last4` rules
+- [x] Merchant normalization → `MerchantNormalizer` (`MerchantNormalizerTest`)
+- [x] Dedup matcher — merchant similarity (≥0.9) + ±5 min window + card + amount (`DedupMatcher`; DB pre-filter same day+amount)
 - `dedup_hash` generation and pending → settled merge strategy
 - Rollups: respect `dismissed`, `is_refund`, `excluded_from_spend` ([PRD §4.1](Budget_Tracker_PRD.md))
 - Alert eligibility: top **5** by target, small-category filter (<5% OR <30 JOD), quiet hours **22:00–08:00**
@@ -48,11 +48,11 @@ Resolved — see [PRD §12](Budget_Tracker_PRD.md):
 
 ## 4. SMS ingestion pipeline
 
-- [x] Seed **`BankTemplate`** for **`arab_bank`** (English regex in `BudgetSeed`) — validate parser against [PRD §14](Budget_Tracker_PRD.md) golden SMS in tests next
-- `SmsParser`: regex + capture groups → structured result + **confidence** ∈ [0,1]; **≥0.85** → auto, else `needs_review`
-- Reject non-JOD SMS per PRD (or document explicit alternative)
-- `SmsBroadcastReceiver`: `SMS_RECEIVED`, filter senders, offload to background dispatcher
-- Wire: Parser → Normalizer → Deduper → Categorizer (rules) → Repository → optional AlertEngine trigger
+- [x] Seed **`BankTemplate`** for **`arab_bank`** — golden SMS unit test [`RegexBankSmsParserTest`](app/src/test/java/com/anasexpenses/budget/sms/parser/RegexBankSmsParserTest.kt)
+- [x] `RegexBankSmsParser` + `ParsedBankSms` / `ParseOutcome`; confidence **0.95** on match; **≥0.85** → `auto`, else `needs_review`
+- [x] Reject non-JOD in ingest (`ParsedBankSms.currency` — Arab Bank template is JOD-only)
+- [x] `SmsTransactionReceiver` → `SmsIntentReader` → `TransactionRepository` on IO + `goAsync()` ([`SmsReceiverEntryPoint`](app/src/main/java/com/anasexpenses/budget/sms/SmsTransactionReceiver.kt) for Hilt)
+- [ ] Sender/heuristic filter before heavy work; optional AlertEngine after insert
 - Optional: **60-day backfill** scan (`Telephony.Sms` inbox) with same pipeline
 
 ---
