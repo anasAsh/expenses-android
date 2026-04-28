@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import kotlin.math.max
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.Calendar
 import javax.inject.Inject
@@ -39,15 +40,36 @@ class BudgetAlarmScheduler @Inject constructor(
             Intent(context, receiver),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            alarmManager.setAlarmClock(
-                AlarmManager.AlarmClockInfo(trigger, showPi),
-                op,
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            alarmManager.setExact(AlarmManager.RTC_WAKEUP, trigger, op)
+        when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                !alarmManager.canScheduleExactAlarms() -> {
+                // API 31+: exact alarms require SCHEDULE_EXACT_ALARM / special access — avoid crash at boot.
+                scheduleWindowedWake(trigger, op)
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP -> {
+                alarmManager.setAlarmClock(
+                    AlarmManager.AlarmClockInfo(trigger, showPi),
+                    op,
+                )
+            }
+            else -> {
+                @Suppress("DEPRECATION")
+                alarmManager.setExact(AlarmManager.RTC_WAKEUP, trigger, op)
+            }
         }
+    }
+
+    /** Fire within a ~30 min window containing [trigger]; no exact-alarm permission needed (API 31+). */
+    private fun scheduleWindowedWake(trigger: Long, op: PendingIntent) {
+        val windowMs = 30 * 60 * 1000L
+        val now = System.currentTimeMillis()
+        val windowStart = max(trigger - windowMs / 2, now)
+        alarmManager.setWindow(
+            AlarmManager.RTC_WAKEUP,
+            windowStart,
+            windowMs,
+            op,
+        )
     }
 
     private fun nextCalendarMillis(hour: Int, minute: Int): Long {
