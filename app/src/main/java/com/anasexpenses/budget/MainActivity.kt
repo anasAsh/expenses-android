@@ -29,12 +29,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.anasexpenses.budget.ui.home.HomeScreen
 import com.anasexpenses.budget.ui.navigation.Route
+import com.anasexpenses.budget.ui.transactions.TransactionsScreen
 import com.anasexpenses.budget.ui.onboarding.OnboardingScreen
 import com.anasexpenses.budget.ui.root.RootUiState
 import com.anasexpenses.budget.ui.root.RootViewModel
-import com.anasexpenses.budget.ui.screens.HomePlaceholderScreen
-import com.anasexpenses.budget.ui.screens.TransactionsPlaceholderScreen
 import com.anasexpenses.budget.ui.theme.BudgetTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -111,8 +111,8 @@ private fun BudgetRootScaffold() {
             startDestination = Route.Home.route,
             modifier = Modifier.padding(innerPadding),
         ) {
-            composable(Route.Home.route) { HomePlaceholderScreen() }
-            composable(Route.Transactions.route) { TransactionsPlaceholderScreen() }
+            composable(Route.Home.route) { HomeScreen() }
+            composable(Route.Transactions.route) { TransactionsScreen() }
         }
     }
 }

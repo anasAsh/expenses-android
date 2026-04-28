@@ -19,4 +19,16 @@
     <string name="category_target_invalid">Enter a valid positive amount (up to 3 decimals).</string>
     <string name="category_excluded_label">Exclude from spend totals (e.g. transfers)</string>
     <string name="onboarding_finish">Start budgeting</string>
+
+    <string name="home_title">This month</string>
+    <string name="home_spent_vs_target">Spent %1$s / %2$s JOD</string>
+    <string name="category_excluded_badge">Excluded</string>
+
+    <string name="transactions_title">Transactions</string>
+    <string name="manual_entry_hint">e.g. coffee 3</string>
+    <string name="manual_entry_add">Add manual</string>
+    <string name="assign_category_title">Assign category</string>
+    <string name="needs_review_badge">Review</string>
+    <string name="rule_create_future">Remember category for this merchant</string>
+    <string name="rule_back_apply_month">Apply to uncategorized this month</string>
 </resources>
