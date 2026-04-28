@@ -10,6 +10,16 @@ The user is not expected to open the app daily or manage detailed financial reco
 
 **v1 platform:** Android only. SMS-first ingestion requires SMS access that is not available to third-party apps on iOS in the background; see §6.
 
+**Implementation note:** Feature coverage that matches the **current Android codebase** is summarized in the **[Appendix — Shipped behavior](#appendix--shipped-behavior-code-aligned)**. Elsewhere, this PRD states **intent**; where intent and implementation diverge, treat the appendix as authoritative for what users see today.
+
+| Quick nav | |
+| --------- | --- |
+| Core product | [§4 Core Features](#4-core-features) · [§8 MVP Scope](#8-mvp-scope) |
+| Data & tech | [§5 Data Model](#5-data-model) · [§6 Technical Requirements](#6-technical-requirements) |
+| Decisions | [§12 Product decisions](#12-product-decisions-v1) · [§13 Internationalization](#13-internationalization) |
+| **Shipped (code)** | **[Appendix — Shipped behavior](#appendix--shipped-behavior-code-aligned)** |
+| SMS QA sample | [§14 Reference SMS](#14-reference-arab-bank-v1-sms-sample) |
+
 ---
 
 ## 2. Product Principles
@@ -47,7 +57,7 @@ An individual managing personal and household finances who:
 1. **Permission rationale** — Explain why SMS access is needed (read bank SMS only; no upload in v1 unless user opts into backup — see §6).
 2. **Grant SMS permission** — Required for primary ingestion; user can skip and rely on manual entry only (degraded experience).
 3. **Optional historical backfill** — Opt-in: process SMS from device inbox for the **last 60 days** using the same parser and dedup rules as live SMS.
-4. **First month setup** — User defines categories + monthly targets for the current calendar month (or next month if onboarding on last day — product choice: default to current month).
+4. **First month setup** — User defines categories + monthly targets for the **current labeled budget month** (derived from today’s date and [budget cycle](#appendix--shipped-behavior-code-aligned) start day when configured; default aligns with calendar month when start day = 1).
 
 #### Success criteria
 
@@ -79,7 +89,8 @@ User reaches a state where at least one category exists and the app can ingest S
 - Categories are:
   - Lightweight
   - Editable anytime within the same month
-  - **Recreated or copied each month** — On rollover (§4.6), previous month’s categories **prefill** the new month; user **one-tap accepts** or edits before the new month is “locked” for alerts (alerts use accepted categories).
+  - **Keyed by labeled budget month** `YYYY-MM` (see [Appendix — Budget cycle](#appendix--shipped-behavior-code-aligned)); spending totals for that label use the **budget-cycle date range**, not necessarily calendar `1st–last` when a custom cycle start day is set (§Appendix).
+  - **Recreated or copied each month** — On rollover (§4.6), previous month’s categories **prefill** the new month; **shipped:** automatic copy when switching to an empty month in the Home picker and via scheduled rollover hook — **no confirmation dialog** (see Appendix).
 
 #### Spending totals
 
@@ -181,9 +192,10 @@ Automatically capture most transactions with minimal user effort.
 #### Behavior
 
 - If no rule matches: `**category_id` null** = **Uncategorized** (included in spend totals only after user assigns category or rule applies retroactively).
+- **Shipped — ingest-time rules:** When an SMS transaction is inserted, the app looks up `Rule` by `normalized_merchant_token` **before** persist; if found, the transaction is stored **with that category** and `status: auto` (same merchant token key as manual correction path).
 - **User correction** (user sets category on a transaction):
   - **Upsert** `Rule` for that `merchant_token` → `category_id`, `source: user_correction`
-  - **Back-apply** (optional product default: **on**) to all **Uncategorized** transactions in the **current calendar month** with the same `normalized_merchant_token`
+  - **Back-apply** (optional product default: **on**) to all **Uncategorized** transactions in the **current budget month window** (calendar month **or** budget-cycle range — **shipped:** epoch-day range from **`BudgetCycle`** for the labeled month) with the same `normalized_merchant_token`
 
 ---
 
@@ -228,10 +240,12 @@ Fast entry for:
 
 ### 4.6 Monthly Auto-Rollover
 
-- **Trigger:** First local calendar day of new month (job at **00:05** local — see architecture doc).
+- **Triggers (shipped):**
+  - **Scheduled:** Alarm-driven **`rolloverFromPreviousMonth`** for the **current labeled budget month** (see Appendix — not only raw `YearMonth.now()` when budget cycle is configured).
+  - **On demand:** When the user selects a **budget month** in Home that has **no categories**, the app **automatically copies** from the **prior calendar month’s** category rows (`targetMonth.minusMonths(1)` in code) **without a confirmation dialog**. If the target month already has categories, copy is skipped.
 - **Behavior:**
-  - Spending totals for the closed month are frozen in reporting sense (data retained).
-  - **New month** starts with **prefilled categories** copied from previous month (names, targets, `excluded_from_spend`); user **confirms or edits** in one flow.
+  - Spending totals for prior periods remain in the database (reporting sense: labeled month + cycle window).
+  - **Prefill** copies names, targets, `excluded_from_spend` from the previous month key.
   - Uncategorized / needs_review items: **not auto-deleted**; they remain until resolved (§4.9).
 
 ---
@@ -258,7 +272,7 @@ Trigger at **spent / target** for a category (only categories **included in spen
 - **Eligible categories for notification:** Top **N = 5** categories by **monthly_target** (descending). Others still show in-app but no push unless user opts into “all categories” (future).
 - **Ignore “very small” categories** for push if **either**: target **< 5%** of total monthly budget (sum of all category targets that month), **or** target **< 30 JOD** (no push for that category; in-app still shows status).
 - **Combine alerts** when possible (single notification summarizing multiple categories crossing thresholds in same evaluation window).
-- **Quiet hours:** No push between **22:00–08:00** local; queue and send at **08:00** unless critical (v1: all alerts non-critical, batch at 08:00).
+- **Quiet hours:** No push between **22:00–08:00** local. **Shipped:** evaluations during quiet hours are **skipped** for that pass (no separate in-memory queue + flush at 08:00); a later **`refreshAlerts`** (new transaction, **DailyBudgetWorker**, **~09:00 daily summary alarm**, etc.) re-evaluates. **Not** a literal queued notification backlog.
 
 ---
 
@@ -266,9 +280,9 @@ Trigger at **spent / target** for a category (only categories **included in spen
 
 ##### Formula
 
-Let `day_of_month` = today’s day index (1..D), `D` = days in month, `current_spend` = category spend month-to-date, `target` = monthly target.
+Let `day_index` = 1-based **day within the current budget cycle window**, `D` = **number of days in that window**, `current_spend` = category spend in-window to date, `target` = monthly target. When the budget cycle start day is **1**, this matches calendar month-day / `D` = month length.
 
-**Projected month-end spend:** `projected = current_spend × (D / day_of_month)`
+**Projected period-end spend:** `projected = current_spend × (D / day_index)` (same formula as `PredictiveEvaluator`; **shipped** uses cycle-aware `day_index` / `D` when budget cycle ≠ calendar month).
 
 ##### Trigger
 
@@ -434,10 +448,9 @@ Enforces **one notification per (category, month, threshold)** for threshold typ
 - **Google Play:** SMS and Call Log permissions are **restricted**. The app must comply with [Use of SMS or Call Log permission groups](https://support.google.com/googleplay/android-developer/answer/9047303): declare narrow use (financial transaction parsing), in-app disclosure, and **no misuse** as default SMS handler unless product explicitly becomes the default SMS app (not required for `SMS_RECEIVED` listener pattern — follow current Play policy for your integration choice).
 - **Privacy / parsing:** **Local-only** parsing and storage for v1; no server upload unless user opts into **anonymous metrics** (§9). **Cloud backup** (e.g. Google Drive AppFolder) is **out of scope until v2** (§12).
 - **Storage:** SQLite via **Room**; optional **SQLCipher** or file encryption with Keystore-wrapped keys for sensitive fields.
-- **Preferences:** DataStore for flags (quiet hours opt-out, backup opt-in).
-- **Background:** **WorkManager** for rollover, summary, periodic predictive evaluation.
-
----
+- **Preferences:** **DataStore** for user flags (onboarding, selected budget month, budget cycle start day, SMS skip, …); separate metrics store (Appendix).
+- **Notifications:** Runtime **`POST_NOTIFICATIONS`** where required by API level; guarded notification post path in shipped app.
+- **Background:** **WorkManager** (`DailyBudgetWorker`); **AlarmManager** for scheduled rollover/summary (exact alarms per device policy).
 
 ## 7. Non-Goals (v1)
 
@@ -454,15 +467,17 @@ Enforces **one notification per (category, month, threshold)** for threshold typ
 
 ## 8. MVP Scope
 
-- Android app
-- SMS parsing (**Arab Bank** only in v1 — template seed + golden corpus in §14)
-- Regex + `BankTemplate` pipeline
-- User-defined monthly categories with rollover prefill
-- Rule-based categorization + user correction → rules
+- Android app (**Compose**, **MVVM**, **Hilt**, **Room**, **DataStore**, **WorkManager** — see Appendix)
+- Bottom navigation: **Home**, **Transactions**, **Settings**; **transaction edit**; **tap category → filtered transactions** route
+- SMS parsing (**Arab Bank** v1 — English template seed + golden corpus §14); regex + `BankTemplate` pipeline; live SMS receiver path + dedup
+- User-defined monthly categories (labeled `YYYY-MM`) with **automatic** rollover copy when selecting empty month + scheduled rollover
+- **Configurable budget month start day (1–28)** and **`BudgetCycle`**-aware ranges for transactions, alerts, workers/receivers (Appendix)
+- Rule-based categorization + **Rules applied on SMS insert** + user correction → rules + optional back-apply
 - Manual entry + shorthand
-- Threshold + predictive budget alerts (with `AlertEvent` deduplication)
-- Monthly summary push (1st @ 09:00)
-- Onboarding + optional 60-day backfill
+- Threshold + predictive budget alerts (with `AlertEvent` deduplication; **top-5** targets; **small-category gate**; **quiet-hours skip**; safe **`notify`** path)
+- **DailyBudgetWorker** + alarm receivers; **daily summary** notification (~09:00) + **`refreshAlerts`** hook
+- **Settings:** DB **export**, SMS **backfill** (~60 days), paste-SMS debug, privacy link, **local metrics**, **bulk category import** (`Name: amount`)
+- Onboarding + optional 60-day backfill (Settings action)
 
 ---
 
@@ -486,7 +501,7 @@ Enforces **one notification per (category, month, threshold)** for threshold typ
 - Bank API integration (replace SMS)
 - ML-based categorization
 - Spending trends visualization
-- Export (CSV/XLSX)
+- Export **CSV/XLSX** (database **file export** exists in Settings — see Appendix)
 - Multi-currency support
 - Recurring transaction detection
 - Category reuse suggestions (smarter than copy)
@@ -511,8 +526,8 @@ Enforces **one notification per (category, month, threshold)** for threshold typ
 | Topic                      | Decision                                                                                                                                                            |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Bank(s) in v1**          | **Arab Bank** only — drives `BankTemplate` seeds and QA golden SMS corpus (§14).                                                                                    |
-| **SMS template languages** | **English only** at launch. Arabic SMS templates deferred (may follow for same bank).                                                                               |
-| **Cloud backup**           | **Not in v1.** Pure local storage until **v2** (Google Drive AppFolder or equivalent then). Optional SAF/file export can still be evaluated independently of Drive. |
+| **SMS template languages** | **English** `BankTemplate` **seed** shipped for Arab Bank; parser supports Arabic/English bodies per regex. Additional seeded templates are incremental.                                                                           |
+| **Cloud backup**           | **Google Drive AppFolder / cloud sync not in v1.** **SQLite file export to user-chosen location** (SAF) **shipped** in Settings — see Appendix.                                                                                    |
 | **Income**                 | **Out of scope for v1** — no “monthly income” field; variance vs income is roadmap ([§10](Budget_Tracker_PRD.md)).                                                  |
 
 
@@ -533,11 +548,94 @@ The following constants are **locked for v1** implementation and QA:
 
 ---
 
-## 13. Internationalization (SMS)
+## 13. Internationalization
 
-- **v1:** **English** SMS templates only (see §12).
-- **Arabic** templates for Arab Bank (or others): deferred post-launch unless prioritized.
-- App UI language can be Arabic/English independently of SMS template language.
+### Bank SMS messages (templates)
+
+- **Shipped:** English **`BankTemplate`** seed for **Arab Bank** (§12, §14).
+- Parser regex pipeline can match **Arabic or English** SMS bodies; additional **seeded** Arabic templates are incremental / roadmap.
+
+### App UI
+
+- **English** (`values/`) primary strings; **Arabic** (`values-ar/`) provided for key screens where translated — independently of SMS template language.
+
+---
+
+## Appendix — Shipped behavior (code-aligned)
+
+> Source of truth: `CLAUDE.md`, `ARCHITECTURE.md`, and Kotlin under `app/src/main/java/com/anasexpenses/budget/`.
+
+### Architecture & shell
+
+| Area | Shipped |
+| ---- | ------- |
+| Pattern | **MVVM**, **Hilt** dependency injection |
+| UI | **Jetpack Compose** |
+| Local DB | **Room** (`BudgetDatabase`): `TransactionEntity`, `CategoryEntity`, `RuleEntity`, `BankTemplateEntity`, `AlertEventEntity` |
+| Preferences | **DataStore** (`UserPreferencesRepository`): selected budget month (`YearMonth` string), budget cycle start day (1–28), onboarding flags, … |
+| Metrics | Separate **DataStore** (`AppMetricsRepository`) for on-device counters (e.g. SMS vs manual rows) surfaced in Settings |
+| Background | **WorkManager** (`DailyBudgetWorker`); **AlarmManager** receivers for rollover / daily summary scheduling |
+| Navigation | Bottom tabs **Home**, **Transactions**, **Settings**; routes include `transactionEdit/{id}`, **`transactions/category/{categoryId}`**; **`RootViewModel`** gates **onboarding** before main shell |
+
+### Home
+
+- Month **picker** updates persisted selected **`YearMonth`** (labeled budget month).
+- **Category cards**: spent vs target, progress, excluded-from-spend badge.
+- **Share** summary via Android share sheet (`Intent.ACTION_SEND`).
+- **Tap category card** → **`transactions/category/{categoryId}`**: transaction list filtered to that category for the **selected** month/cycle; **TopAppBar** **back** uses **`navigateUp`** when filtered.
+- **Rollover:** Selecting a month with **zero** categories triggers **`rolloverFromPreviousMonth`** **without** dialog.
+
+### Budget cycle (`BudgetCycle`)
+
+- User setting: **start day** ∈ **[1, 28]** (Settings).
+- **Labeled `YearMonth`** still keys categories in Room (`month = "YYYY-MM"`).
+- **Transaction date ranges**, threshold spend sums, predictive **day index / length**, **`refreshAlerts(month)`** arguments from txn dates, **workers/receivers** use **`labeledYearMonthForDate`** / **`epochDayRangeInclusive`** — not always calendar month boundaries when start day ≠ 1.
+
+### Transactions
+
+- List + filters honor **budget cycle** epoch-day range for the selected labeled month.
+- **Manual** entry FAB + shorthand parser.
+- **Assign category** dialog: optional **remember rule**, optional **back-apply** (same token, uncategorized, within cycle window).
+- **Transaction edit** screen for full edits.
+
+### Merchant rules
+
+- **`RuleEntity`**: unique `merchant_token` → `category_id`.
+- **SMS insert:** **`ruleDao.getByMerchantToken`** before insert → pre-fill **`category_id`** when rule exists (**AUTO** path when categorized by rule).
+- **Manual assign:** upsert rule + optional back-apply as above.
+
+### Settings
+
+- **Export** SQLite backup via Storage Access Framework (create document).
+- **Import recent SMS** (~60 days) from inbox through same ingest pipeline.
+- **Paste SMS** debug ingest.
+- **Privacy policy** opens browser URL from strings.
+- **Metrics** (local counters).
+- **Import categories** bulk text (`Name: amount` lines; **JodMoney** parsing; skips duplicate names case-insensitively for current month).
+- **Budget month starts on [day 1–28]** — updates preference and **snaps selected month** to current labeled month when changed.
+
+### Alerts & notifications
+
+| Topic | Shipped |
+| ----- | ------- |
+| Thresholds | ~**70% / 85% / 100%** tier evaluation (`BudgetAlertCoordinator`) |
+| Predictive | ≥ **110%** projected vs target; **`PredictiveEvaluator`** |
+| Eligibility | **Top 5** categories by target (included); **`SmallCategoryGate`** |
+| Dedup | **`AlertEvent`** per `(category_id, month, threshold_type)` |
+| Quiet hours | **22:00–08:00** — **skip** this evaluation (`QuietHours`); **no** separate queued flush in-app |
+| Posting | **`notifySafe`** checks notifications enabled; catches **`SecurityException`** (**POST_NOTIFICATIONS**) |
+| Periodic | **`DailyBudgetWorker`** calls **`refreshAlerts`** for **labeled** current month |
+| Daily alarm | **Daily summary** notification text + **`refreshAlerts`** for labeled month + reschedule alarms |
+
+### SMS pipeline (Arab Bank)
+
+- **`SmsTransactionReceiver`** → **`ArabBankSmsFilter`** → **`RegexBankSmsParser`** + **`BankTemplateEntity`** (seed **`arab_bank`** English template in **`BudgetSeed`**).
+- Non-JOD SMS rejected on ingest path (repository).
+- **Dedup:** **`DedupMatcher`** / **`DedupHash`** per **`PrdConstants`** (confidence threshold, ±5 min window, similarity).
+
+### Internationalization
+
+- App strings: **English** defaults + **Arabic** `values-ar` resources (where translated).
 
 ---
 

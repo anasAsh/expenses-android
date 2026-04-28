@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.anasexpenses.budget.data.CategoryRepository
 import com.anasexpenses.budget.data.TransactionRepository
+import com.anasexpenses.budget.data.preferences.UserPreferencesRepository
+import com.anasexpenses.budget.domain.time.BudgetCycle
 import com.anasexpenses.budget.data.local.entity.CategoryEntity
 import com.anasexpenses.budget.data.local.entity.TransactionEntity
 import com.anasexpenses.budget.data.local.entity.TxStatus
@@ -13,7 +15,6 @@ import com.anasexpenses.budget.domain.PrdConstants
 import com.anasexpenses.budget.domain.money.JodMoney
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
-import java.time.YearMonth
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +29,7 @@ class TransactionEditViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val transactionRepository: TransactionRepository,
     categoryRepository: CategoryRepository,
+    userPreferencesRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
     val transactionId: Long = checkNotNull(savedStateHandle.get<Long>("id")) {
@@ -41,8 +43,10 @@ class TransactionEditViewModel @Inject constructor(
     val categories: StateFlow<List<CategoryEntity>> = transaction
         .filterNotNull()
         .flatMapLatest { e ->
-            val month = YearMonth.from(LocalDate.ofEpochDay(e.dateEpochDay))
-            categoryRepository.observeMonth(month.toString())
+            userPreferencesRepository.budgetCycleStartDay.flatMapLatest { startDay ->
+                val ym = BudgetCycle.labeledYearMonthForDate(LocalDate.ofEpochDay(e.dateEpochDay), startDay)
+                categoryRepository.observeMonth(ym.toString())
+            }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

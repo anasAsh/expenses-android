@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -55,6 +56,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
+    onCategoryClick: (Long) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val rows by viewModel.rows.collectAsStateWithLifecycle()
@@ -73,7 +75,7 @@ fun HomeScreen(
     var targetError by remember { mutableStateOf(false) }
 
     var monthPickerOpen by remember { mutableStateOf(false) }
-    var rolloverTarget by remember { mutableStateOf<YearMonth?>(null) }
+    var deleteCategoryRow by remember { mutableStateOf<CategorySpendRow?>(null) }
 
     val monthChoices = remember {
         val now = YearMonth.now()
@@ -152,10 +154,43 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(rows, key = { it.category.id }) { row ->
-                    CategoryCard(row = row)
+                    CategoryCard(
+                        row = row,
+                        onClick = { onCategoryClick(row.category.id) },
+                        onDeleteClick = { deleteCategoryRow = row },
+                    )
                 }
             }
         }
+    }
+
+    val pendingDelete = deleteCategoryRow
+    if (pendingDelete != null) {
+        AlertDialog(
+            onDismissRequest = { deleteCategoryRow = null },
+            title = { Text(stringResource(R.string.home_delete_category_title)) },
+            text = {
+                Text(
+                    stringResource(R.string.home_delete_category_body, pendingDelete.category.name),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val id = pendingDelete.category.id
+                        deleteCategoryRow = null
+                        scope.launch {
+                            viewModel.deleteCategory(id) {}
+                        }
+                    },
+                ) { Text(stringResource(R.string.home_delete_category_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteCategoryRow = null }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
     }
 
     if (monthPickerOpen) {
@@ -171,9 +206,8 @@ fun HomeScreen(
                                 .fillMaxWidth()
                                 .clickable {
                                     scope.launch {
-                                        val needRollover = viewModel.selectMonth(ym)
+                                        viewModel.selectMonth(ym)
                                         monthPickerOpen = false
-                                        if (needRollover) rolloverTarget = ym
                                     }
                                 }
                                 .padding(vertical = 12.dp),
@@ -184,37 +218,6 @@ fun HomeScreen(
             },
             confirmButton = {
                 TextButton(onClick = { monthPickerOpen = false }) {
-                    Text(stringResource(android.R.string.cancel))
-                }
-            },
-        )
-    }
-
-    val rolloverYm = rolloverTarget
-    if (rolloverYm != null) {
-        val prev = rolloverYm.minusMonths(1)
-        AlertDialog(
-            onDismissRequest = { rolloverTarget = null },
-            title = { Text(stringResource(R.string.home_rollover_title)) },
-            text = {
-                Text(
-                    stringResource(
-                        R.string.home_rollover_body,
-                        rolloverYm.format(monthFormatter),
-                        prev.format(monthFormatter),
-                    ),
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.confirmRolloverCopy(rolloverYm)
-                        rolloverTarget = null
-                    },
-                ) { Text(stringResource(android.R.string.ok)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { rolloverTarget = null }) {
                     Text(stringResource(android.R.string.cancel))
                 }
             },
@@ -322,7 +325,11 @@ private fun categoryCardContainerColor(row: CategorySpendRow): Color {
 }
 
 @Composable
-private fun CategoryCard(row: CategorySpendRow) {
+private fun CategoryCard(
+    row: CategorySpendRow,
+    onClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+) {
     val target = row.category.monthlyTargetMilliJod
     val spent = row.spentMilliJod.coerceAtLeast(0L)
     val progress = if (target > 0L) {
@@ -343,29 +350,49 @@ private fun CategoryCard(row: CategorySpendRow) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(row.category.name, style = MaterialTheme.typography.titleMedium)
-                if (row.category.excludedFromSpend) {
-                    Text(
-                        stringResource(R.string.category_excluded_badge),
-                        style = MaterialTheme.typography.labelSmall,
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(onClick = onClick),
+                ) {
+                    Text(row.category.name, style = MaterialTheme.typography.titleMedium)
+                    if (row.category.excludedFromSpend) {
+                        Text(
+                            stringResource(R.string.category_excluded_badge),
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                }
+                IconButton(
+                    onClick = onDeleteClick,
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.home_delete_category_cd),
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                stringResource(
-                    R.string.home_spent_vs_target,
-                    formatJodFromMilli(spent),
-                    formatJodFromMilli(target),
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            if (!row.category.excludedFromSpend && target > 0L) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onClick),
+            ) {
                 Spacer(modifier = Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    progress = { progress.coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth(),
+                Text(
+                    stringResource(
+                        R.string.home_spent_vs_target,
+                        formatJodFromMilli(spent),
+                        formatJodFromMilli(target),
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
                 )
+                if (!row.category.excludedFromSpend && target > 0L) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { progress.coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
     }

@@ -18,4 +18,7 @@ interface AlertEventDao {
         """,
     )
     suspend fun countFor(categoryId: Long, month: String, thresholdType: String): Int
+
+    @Query("DELETE FROM alert_events WHERE category_id = :categoryId")
+    suspend fun deleteByCategoryId(categoryId: Long)
 }

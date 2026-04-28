@@ -20,7 +20,7 @@ object NotificationDeepLinks {
                 requestCode,
                 i,
                 PendingIntent.FLAG_UPDATE_CURRENT,
-                true,
+                false,
             ),
         )
     }

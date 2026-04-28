@@ -131,7 +131,10 @@ private fun BudgetRootScaffold() {
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.List, contentDescription = null) },
                     label = { Text(stringResource(R.string.nav_transactions)) },
-                    selected = currentDestination?.hierarchy?.any { it.route == Route.Transactions.route } == true,
+                    selected = currentDestination?.route?.let { r ->
+                        r == Route.Transactions.route ||
+                            r.startsWith("transactions/category/")
+                    } == true,
                     onClick = {
                         navController.navigate(Route.Transactions.route) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -165,7 +168,13 @@ private fun BudgetRootScaffold() {
                 deepLinks = listOf(
                     navDeepLink { uriPattern = "anasexpenses://app/home" },
                 ),
-            ) { HomeScreen() }
+            ) {
+                HomeScreen(
+                    onCategoryClick = { categoryId ->
+                        navController.navigate(Route.TransactionsForCategory.routeWithArgs(categoryId))
+                    },
+                )
+            }
             composable(
                 route = Route.Transactions.route,
                 deepLinks = listOf(
@@ -176,6 +185,20 @@ private fun BudgetRootScaffold() {
                     onEditTransaction = { id ->
                         navController.navigate(Route.TransactionEdit.routeWithArgs(id))
                     },
+                    onNavigateUp = { navController.navigateUp() },
+                )
+            }
+            composable(
+                route = Route.TransactionsForCategory.route,
+                arguments = listOf(
+                    navArgument("categoryId") { type = NavType.LongType },
+                ),
+            ) {
+                TransactionsScreen(
+                    onEditTransaction = { id ->
+                        navController.navigate(Route.TransactionEdit.routeWithArgs(id))
+                    },
+                    onNavigateUp = { navController.navigateUp() },
                 )
             }
             composable(

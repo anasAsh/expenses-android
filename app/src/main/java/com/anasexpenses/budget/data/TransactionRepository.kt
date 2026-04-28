@@ -16,7 +16,8 @@ import com.anasexpenses.budget.domain.dedup.DedupHash
 import com.anasexpenses.budget.domain.dedup.DedupMatcher
 import com.anasexpenses.budget.domain.manual.ManualLineParser
 import com.anasexpenses.budget.domain.merchant.MerchantNormalizer
-import com.anasexpenses.budget.domain.time.YearMonthRange
+import com.anasexpenses.budget.data.preferences.UserPreferencesRepository
+import com.anasexpenses.budget.domain.time.BudgetCycle
 import com.anasexpenses.budget.domain.time.epochMillisFrom
 import com.anasexpenses.budget.sms.parser.ParseOutcome
 import com.anasexpenses.budget.sms.parser.ParsedBankSms
@@ -27,21 +28,25 @@ import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 
 @Singleton
 class TransactionRepository @Inject constructor(
     private val transactionDao: TransactionDao,
     private val ruleDao: RuleDao,
     private val bankTemplateDao: BankTemplateDao,
+    private val userPreferencesRepository: UserPreferencesRepository,
     private val alertCoordinator: BudgetAlertCoordinator,
     private val appMetricsRepository: AppMetricsRepository,
 ) {
     private val zone: ZoneId get() = ZoneId.systemDefault()
 
-    fun observeTransactionsForMonth(month: YearMonth): Flow<List<TransactionEntity>> {
-        val r = YearMonthRange.epochDayRangeInclusive(month)
-        return transactionDao.observeBetweenDays(r.first, r.last)
-    }
+    fun observeTransactionsForMonth(month: YearMonth): Flow<List<TransactionEntity>> =
+        userPreferencesRepository.budgetCycleStartDay.flatMapLatest { startDay ->
+            val r = BudgetCycle.epochDayRangeInclusive(month, startDay)
+            transactionDao.observeBetweenDays(r.first, r.last)
+        }
 
     fun observeNeedsReviewCount(): Flow<Int> = transactionDao.observeNeedsReviewCount()
 
@@ -72,9 +77,14 @@ class TransactionRepository @Inject constructor(
     ) {
         val normalizedMerchant = MerchantNormalizer.normalizedMerchant(fields.merchantRaw)
         val token = MerchantNormalizer.merchantToken(fields.merchantRaw)
-        val categoryId: Long? = null
+        val rule = ruleDao.getByMerchantToken(token)
+        val categoryId: Long? = rule?.categoryId
         val status =
-            if (confidence >= PrdConstants.CONFIDENCE_AUTO_MIN) TxStatus.AUTO else TxStatus.NEEDS_REVIEW
+            when {
+                categoryId != null -> TxStatus.AUTO
+                confidence >= PrdConstants.CONFIDENCE_AUTO_MIN -> TxStatus.AUTO
+                else -> TxStatus.NEEDS_REVIEW
+            }
         val instantMillis = epochMillisFrom(fields.dateEpochDay, fields.timeSecondOfDay, zone)
 
         val candidates = transactionDao.findSameDayAndAmount(fields.amountMilliJod, fields.dateEpochDay)
@@ -120,7 +130,9 @@ class TransactionRepository @Inject constructor(
             ),
         )
         appMetricsRepository.recordSmsTransactionInserted()
-        alertCoordinator.refreshAlerts(YearMonth.from(LocalDate.ofEpochDay(fields.dateEpochDay)))
+        val cycleStartDay = userPreferencesRepository.budgetCycleStartDay.first()
+        val txnDate = LocalDate.ofEpochDay(fields.dateEpochDay)
+        alertCoordinator.refreshAlerts(BudgetCycle.labeledYearMonthForDate(txnDate, cycleStartDay))
     }
 
     suspend fun insertManualLine(
@@ -158,13 +170,15 @@ class TransactionRepository @Inject constructor(
             ),
         )
         appMetricsRepository.recordManualTransactionInserted()
-        alertCoordinator.refreshAlerts(YearMonth.from(today))
+        val cycleStartDay = userPreferencesRepository.budgetCycleStartDay.first()
+        alertCoordinator.refreshAlerts(BudgetCycle.labeledYearMonthForDate(today, cycleStartDay))
         return true
     }
 
     suspend fun updateTransaction(entity: TransactionEntity) {
         transactionDao.update(entity.copy(updatedAtEpochMillis = System.currentTimeMillis()))
-        val ym = YearMonth.from(LocalDate.ofEpochDay(entity.dateEpochDay))
+        val cycleStartDay = userPreferencesRepository.budgetCycleStartDay.first()
+        val ym = BudgetCycle.labeledYearMonthForDate(LocalDate.ofEpochDay(entity.dateEpochDay), cycleStartDay)
         alertCoordinator.refreshAlerts(ym)
     }
 
@@ -194,8 +208,9 @@ class TransactionRepository @Inject constructor(
             )
         }
         if (backApplyUncategorizedSameMonth) {
-            val ym = YearMonth.from(LocalDate.ofEpochDay(t.dateEpochDay))
-            val range = YearMonthRange.epochDayRangeInclusive(ym)
+            val cycleStartDay = userPreferencesRepository.budgetCycleStartDay.first()
+            val ym = BudgetCycle.labeledYearMonthForDate(LocalDate.ofEpochDay(t.dateEpochDay), cycleStartDay)
+            val range = BudgetCycle.epochDayRangeInclusive(ym, cycleStartDay)
             transactionDao.backApplyCategoryForToken(
                 token = token,
                 catId = categoryId,
@@ -204,7 +219,10 @@ class TransactionRepository @Inject constructor(
                 now = now,
             )
         }
-        alertCoordinator.refreshAlerts(YearMonth.from(LocalDate.ofEpochDay(t.dateEpochDay)))
+        val cycleStartDayRefresh = userPreferencesRepository.budgetCycleStartDay.first()
+        alertCoordinator.refreshAlerts(
+            BudgetCycle.labeledYearMonthForDate(LocalDate.ofEpochDay(t.dateEpochDay), cycleStartDayRefresh),
+        )
     }
 
     suspend fun getTransaction(id: Long): TransactionEntity? = transactionDao.getById(id)

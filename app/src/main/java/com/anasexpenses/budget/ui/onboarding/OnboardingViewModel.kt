@@ -5,9 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.anasexpenses.budget.data.CategoryRepository
 import com.anasexpenses.budget.data.preferences.UserPreferencesRepository
 import com.anasexpenses.budget.domain.money.JodMoney
+import com.anasexpenses.budget.domain.time.BudgetCycle
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.time.YearMonth
+import java.time.LocalDate
 import javax.inject.Inject
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -38,7 +40,8 @@ class OnboardingViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            val month = YearMonth.now().toString()
+            val cycle = prefs.budgetCycleStartDay.first()
+            val month = BudgetCycle.labeledYearMonthForDate(LocalDate.now(), cycle).toString()
             categoryRepository.addCategory(month, n, milli, excludedFromSpend)
             prefs.setOnboardingComplete(true)
         }

@@ -5,15 +5,17 @@ import com.anasexpenses.budget.data.local.dao.CategoryDao
 import com.anasexpenses.budget.data.local.dao.TransactionDao
 import com.anasexpenses.budget.data.local.entity.AlertEventEntity
 import com.anasexpenses.budget.data.local.entity.AlertThresholdType
+import com.anasexpenses.budget.data.preferences.UserPreferencesRepository
 import com.anasexpenses.budget.domain.alerts.PredictiveEvaluator
 import com.anasexpenses.budget.domain.alerts.QuietHours
 import com.anasexpenses.budget.domain.alerts.SmallCategoryGate
-import com.anasexpenses.budget.domain.time.YearMonthRange
+import com.anasexpenses.budget.domain.time.BudgetCycle
 import com.anasexpenses.budget.notifications.BudgetNotificationHelper
 import java.time.LocalDate
 import java.time.YearMonth
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.first
 
 @Singleton
 class BudgetAlertCoordinator @Inject constructor(
@@ -21,17 +23,19 @@ class BudgetAlertCoordinator @Inject constructor(
     private val transactionDao: TransactionDao,
     private val alertEventDao: AlertEventDao,
     private val notifications: BudgetNotificationHelper,
+    private val userPreferencesRepository: UserPreferencesRepository,
 ) {
 
     suspend fun refreshAlerts(month: YearMonth) {
-        evaluateThresholds(month)
-        evaluatePredictive(month)
+        val cycleStartDay = userPreferencesRepository.budgetCycleStartDay.first()
+        evaluateThresholds(month, cycleStartDay)
+        evaluatePredictive(month, cycleStartDay)
     }
 
-    private suspend fun evaluateThresholds(month: YearMonth) {
+    private suspend fun evaluateThresholds(month: YearMonth, cycleStartDay: Int) {
         val monthStr = month.toString()
         val totalBudgetMilli = categoryDao.sumTargetsIncludedForMonth(monthStr)
-        val range = YearMonthRange.epochDayRangeInclusive(month)
+        val range = BudgetCycle.epochDayRangeInclusive(month, cycleStartDay)
         val top = categoryDao.getByMonth(monthStr)
             .filter { !it.excludedFromSpend }
             .sortedByDescending { it.monthlyTargetMilliJod }
@@ -83,19 +87,19 @@ class BudgetAlertCoordinator @Inject constructor(
         }
     }
 
-    private suspend fun evaluatePredictive(month: YearMonth) {
+    private suspend fun evaluatePredictive(month: YearMonth, cycleStartDay: Int) {
         val today = LocalDate.now()
-        if (YearMonth.from(today) != month) return
+        if (BudgetCycle.labeledYearMonthForDate(today, cycleStartDay) != month) return
         val monthStr = month.toString()
         val totalBudgetMilli = categoryDao.sumTargetsIncludedForMonth(monthStr)
-        val range = YearMonthRange.epochDayRangeInclusive(month)
+        val range = BudgetCycle.epochDayRangeInclusive(month, cycleStartDay)
         val top = categoryDao.getByMonth(monthStr)
             .filter { !it.excludedFromSpend }
             .sortedByDescending { it.monthlyTargetMilliJod }
             .take(5)
 
-        val day = today.dayOfMonth
-        val dim = month.lengthOfMonth()
+        val dayOfCycle = BudgetCycle.dayOfCycle(today, month, cycleStartDay) ?: return
+        val dim = BudgetCycle.daysInCycle(month, cycleStartDay)
 
         for (c in top) {
             val target = c.monthlyTargetMilliJod
@@ -103,7 +107,7 @@ class BudgetAlertCoordinator @Inject constructor(
             if (SmallCategoryGate.shouldSuppressPush(target, totalBudgetMilli)) continue
 
             val spent = transactionDao.sumSignedMilliJodForCategoryInRange(c.id, range.first, range.last) ?: 0L
-            val projected = PredictiveEvaluator.projectedMonthEndSpend(spent, day, dim)
+            val projected = PredictiveEvaluator.projectedMonthEndSpend(spent, dayOfCycle, dim)
             if (!PredictiveEvaluator.exceedsPredictiveThreshold(projected, target)) continue
             if (alertEventDao.countFor(c.id, monthStr, AlertThresholdType.PREDICTIVE) > 0) continue
             if (QuietHours.isQuietNow()) continue

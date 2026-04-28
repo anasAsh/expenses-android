@@ -29,7 +29,7 @@ interface TransactionDao {
         """
         SELECT * FROM transactions
         WHERE date_epoch_day >= :startEpochDay AND date_epoch_day <= :endEpochDay
-        ORDER BY date_epoch_day DESC, time_second_of_day DESC
+        ORDER BY date_epoch_day DESC, time_second_of_day DESC, id DESC
         """,
     )
     fun observeBetweenDays(startEpochDay: Long, endEpochDay: Long): Flow<List<TransactionEntity>>
@@ -83,4 +83,12 @@ interface TransactionDao {
         endDay: Long,
         now: Long,
     ): Int
+
+    @Query(
+        """
+        UPDATE transactions SET category_id = NULL, updated_at_epoch_millis = :now
+        WHERE category_id = :categoryId
+        """,
+    )
+    suspend fun clearCategoryAssignments(categoryId: Long, now: Long): Int
 }

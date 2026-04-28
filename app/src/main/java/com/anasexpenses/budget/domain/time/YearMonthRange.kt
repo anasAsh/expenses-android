@@ -4,11 +4,9 @@ import java.time.LocalDate
 import java.time.YearMonth
 
 object YearMonthRange {
-    fun epochDayRangeInclusive(month: YearMonth): LongRange {
-        val start = month.atDay(1).toEpochDay()
-        val end = month.atEndOfMonth().toEpochDay()
-        return start..end
-    }
+    /** Calendar month (1st–last day). Prefer [BudgetCycle.epochDayRangeInclusive] when using a custom cycle start day. */
+    fun epochDayRangeInclusive(month: YearMonth): LongRange =
+        BudgetCycle.epochDayRangeInclusive(month, BudgetCycle.MIN_START_DAY)
 
     fun todayEpochDay(): Long = LocalDate.now().toEpochDay()
 

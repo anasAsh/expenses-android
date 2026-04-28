@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,9 +15,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +41,8 @@ fun SettingsScreen(
 ) {
     val smsRows by viewModel.smsTransactionRows.collectAsStateWithLifecycle()
     val manualRows by viewModel.manualTransactionRows.collectAsStateWithLifecycle()
+    val cycleDay by viewModel.budgetCycleStartDay.collectAsStateWithLifecycle()
+    var cycleMenuOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
     var pasteBody by remember { mutableStateOf("") }
     var status by remember { mutableStateOf<String?>(null) }
@@ -61,6 +67,70 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.headlineSmall)
+
+        Text(stringResource(R.string.settings_budget_cycle_title), style = MaterialTheme.typography.titleMedium)
+        Text(
+            stringResource(R.string.settings_budget_cycle_help),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            stringResource(R.string.settings_budget_cycle_current, cycleDay),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Box {
+            TextButton(onClick = { cycleMenuOpen = true }) {
+                Text(stringResource(R.string.settings_budget_cycle_open_menu))
+            }
+            DropdownMenu(
+                expanded = cycleMenuOpen,
+                onDismissRequest = { cycleMenuOpen = false },
+            ) {
+                for (day in 1..28) {
+                    DropdownMenuItem(
+                        text = { Text(day.toString()) },
+                        onClick = {
+                            viewModel.setBudgetCycleStartDay(day)
+                            cycleMenuOpen = false
+                        },
+                    )
+                }
+            }
+        }
+
+        Text(stringResource(R.string.settings_category_import_title), style = MaterialTheme.typography.titleMedium)
+        var importCategoriesText by remember { mutableStateOf("") }
+        OutlinedTextField(
+            value = importCategoriesText,
+            onValueChange = { importCategoriesText = it },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 8,
+            label = { Text(stringResource(R.string.settings_category_import_label)) },
+            supportingText = { Text(stringResource(R.string.settings_category_import_help)) },
+        )
+        Button(
+            onClick = {
+                viewModel.importCategoriesFromText(importCategoriesText) { summary ->
+                    val base = context.getString(
+                        R.string.settings_category_import_result,
+                        summary.addedCount,
+                        summary.skippedDuplicateCount,
+                        summary.parseErrors.size,
+                    )
+                    status = if (summary.parseErrors.isEmpty()) {
+                        base
+                    } else {
+                        val lines = summary.parseErrors.take(8).joinToString("\n")
+                        val more =
+                            if (summary.parseErrors.size > 8) "\n…" else ""
+                        "$base\n\n$lines$more"
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.settings_category_import_button))
+        }
 
         Text(
             stringResource(R.string.settings_metrics_title),

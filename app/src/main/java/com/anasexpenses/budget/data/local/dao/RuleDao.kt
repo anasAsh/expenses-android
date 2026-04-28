@@ -13,4 +13,7 @@ interface RuleDao {
 
     @Query("SELECT * FROM rules WHERE merchant_token = :token LIMIT 1")
     suspend fun getByMerchantToken(token: String): RuleEntity?
+
+    @Query("DELETE FROM rules WHERE category_id = :categoryId")
+    suspend fun deleteByCategoryId(categoryId: Long)
 }

@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.anasexpenses.budget.R
+import com.anasexpenses.budget.util.BudgetLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -28,7 +29,7 @@ class BudgetNotificationHelper @Inject constructor(
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .build()
-        NotificationManagerCompat.from(context).notify(notificationId, notification)
+        notifySafe(notificationId, notification)
     }
 
     /** Merges multiple threshold lines into a single InboxStyle notification. */
@@ -54,7 +55,7 @@ class BudgetNotificationHelper @Inject constructor(
             .setContentInfo("${lines.size} alerts")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
-        NotificationManagerCompat.from(context).notify(digestId, notif)
+        notifySafe(digestId, notif)
     }
 
     fun showSummary(notificationId: Int, title: String, body: String) {
@@ -67,6 +68,16 @@ class BudgetNotificationHelper @Inject constructor(
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
-        NotificationManagerCompat.from(context).notify(notificationId, notification)
+        notifySafe(notificationId, notification)
+    }
+
+    private fun notifySafe(notificationId: Int, notification: Notification) {
+        val nm = NotificationManagerCompat.from(context)
+        if (!nm.areNotificationsEnabled()) return
+        try {
+            nm.notify(notificationId, notification)
+        } catch (e: SecurityException) {
+            BudgetLog.v { "notify blocked: ${e.message}" }
+        }
     }
 }

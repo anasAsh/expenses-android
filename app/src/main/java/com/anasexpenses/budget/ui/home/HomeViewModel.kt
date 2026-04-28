@@ -95,17 +95,18 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * Updates the selected budget month. Returns true if the UI should prompt to copy categories
-     * from the previous month.
+     * Updates the selected budget month. When [yearMonth] has no categories yet, copies names,
+     * targets, and excluded flags from the previous calendar month (same DB path as rollover alarm).
      */
-    suspend fun selectMonth(yearMonth: YearMonth): Boolean {
+    suspend fun selectMonth(yearMonth: YearMonth) {
         userPreferencesRepository.setSelectedMonth(yearMonth)
-        return categoryRepository.shouldOfferRolloverCopy(yearMonth)
+        categoryRepository.rolloverFromPreviousMonth(yearMonth)
     }
 
-    fun confirmRolloverCopy(targetMonth: YearMonth) {
+    fun deleteCategory(categoryId: Long, onDone: () -> Unit) {
         viewModelScope.launch {
-            categoryRepository.rolloverFromPreviousMonth(targetMonth)
+            categoryRepository.deleteCategory(categoryId)
+            onDone()
         }
     }
 }

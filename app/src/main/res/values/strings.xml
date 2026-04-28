@@ -23,21 +23,26 @@
 
     <string name="home_title">This month</string>
     <string name="home_month_picker_title">Budget month</string>
-    <string name="home_rollover_title">Copy categories?</string>
-    <string name="home_rollover_body">No budgets for %1$s yet. Copy categories and targets from %2$s?</string>
     <string name="home_share_summary">Share summary</string>
     <string name="home_share_chooser">Share budget summary</string>
     <string name="home_share_subject">Budget summary</string>
     <string name="home_unassigned_line">Unassigned spend: %1$s JOD</string>
     <string name="home_add_category">Add category</string>
     <string name="home_add_category_title">New category</string>
+    <string name="home_delete_category_title">Delete category?</string>
+    <string name="home_delete_category_body">Remove %1$s? All transactions that used this category (in any month) will become unassigned. Merchant rules pointing to this category will be removed.</string>
+    <string name="home_delete_category_confirm">Delete</string>
+    <string name="home_delete_category_cd">Delete category</string>
     <string name="home_spent_vs_target">Spent %1$s / %2$s JOD</string>
     <string name="category_excluded_badge">Excluded</string>
 
     <string name="transactions_title">Transactions</string>
+    <string name="transactions_category_filter">Category: %1$s</string>
+    <string name="cd_navigate_up">Navigate up</string>
     <string name="manual_entry_hint">e.g. coffee 3</string>
     <string name="manual_entry_add">Add manual</string>
     <string name="assign_category_title">Assign category</string>
+    <string name="transactions_category_pick">Choose a category</string>
     <string name="needs_review_badge">Review</string>
     <string name="transaction_needs_category">Needs category</string>
     <string name="transaction_unassigned">Unassigned</string>
@@ -47,6 +52,15 @@
     <!-- Replace with your hosted privacy policy before Play release. -->
     <string name="privacy_policy_url">https://example.com/privacy</string>
     <string name="settings_title">Settings</string>
+    <string name="settings_budget_cycle_title">Budget month starts on</string>
+    <string name="settings_budget_cycle_help">Each budget period runs from this calendar day until the day before the same date next month. Only days 1–28 are supported so every month has a valid start.</string>
+    <string name="settings_budget_cycle_current">Current start day: %1$d</string>
+    <string name="settings_budget_cycle_open_menu">Choose day</string>
+    <string name="settings_category_import_title">Import categories</string>
+    <string name="settings_category_import_label">Lines like Name: amount</string>
+    <string name="settings_category_import_help">One category per line. Target is monthly JOD (e.g. 100 or 99.500).</string>
+    <string name="settings_category_import_button">Import into current budget month</string>
+    <string name="settings_category_import_result">Added %1$d · Skipped %2$d duplicates · %3$d lines with parse errors</string>
     <string name="settings_export_db">Export database backup</string>
     <string name="settings_export_done">Backup saved.</string>
     <string name="settings_export_failed">Could not write backup.</string>

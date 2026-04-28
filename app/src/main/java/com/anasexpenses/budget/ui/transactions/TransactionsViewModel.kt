@@ -1,5 +1,6 @@
 package com.anasexpenses.budget.ui.transactions
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.anasexpenses.budget.data.CategoryRepository
@@ -12,20 +13,36 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 @HiltViewModel
 class TransactionsViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
     categoryRepository: CategoryRepository,
     private val transactionRepository: TransactionRepository,
     userPreferencesRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
+    /** When non-null, list is restricted to this category for the selected month. */
+    val filterCategoryId: Long? =
+        savedStateHandle.get<Long>("categoryId")?.takeIf { it > 0L }
+
     val transactions: StateFlow<List<TransactionEntity>> =
         userPreferencesRepository.selectedMonth
             .flatMapLatest { month ->
                 transactionRepository.observeTransactionsForMonth(month)
+            }
+            .map { list ->
+                val fid = filterCategoryId
+                val filtered =
+                    if (fid != null) list.filter { it.categoryId == fid } else list
+                filtered.sortedWith(
+                    compareByDescending<TransactionEntity> { it.dateEpochDay }
+                        .thenByDescending { it.timeSecondOfDay }
+                        .thenByDescending { it.id },
+                )
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
