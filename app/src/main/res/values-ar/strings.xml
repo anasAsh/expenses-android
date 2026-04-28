@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">أنفقة أنس</string>
+    <string name="nav_home">الرئيسية</string>
+    <string name="nav_transactions">المعاملات</string>
+    <string name="nav_settings">الإعدادات</string>
+    <string name="onboarding_welcome_title">مرحباً</string>
+    <string name="onboarding_welcome_body">أضِف أول فئة ميزانية. يمكنك إضافة المزيد لاحقاً.</string>
+    <string name="onboarding_category_title">الفئة الأولى</string>
+    <string name="category_name_label">الاسم</string>
+    <string name="category_target_jod_label">الهدف الشهري (دينار)</string>
+    <string name="onboarding_finish">ابدأ الميزانية</string>
+    <string name="home_title">هذا الشهر</string>
+    <string name="home_add_category">إضافة فئة</string>
+    <string name="transactions_title">المعاملات</string>
+    <string name="settings_title">الإعدادات</string>
+    <string name="manual_entry_add">إضافة يدوية</string>
+    <string name="assign_category_title">تعيين الفئة</string>
+    <string name="sms_permission_title">وصول الرسائل</string>
+    <string name="sms_permission_grant">السماح بالرسائل</string>
+    <string name="sms_permission_skip">تخطّي — إدخال يدوي</string>
+    <string name="transaction_edit_title">تعديل معاملة</string>
+    <string name="transaction_edit_save">حفظ</string>
+</resources>

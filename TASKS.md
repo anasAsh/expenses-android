@@ -20,7 +20,7 @@ Ordered roughly by dependency. Status reflects the codebase as of the latest imp
 - [x] Hilt, Room, Navigation Compose, DataStore, WorkManager deps
 - [x] App theme, `BudgetApplication`, bottom-nav shell, onboarding gate
 - [x] SMS disclosure strings + onboarding SMS section ([PRD §6](Budget_Tracker_PRD.md))
-- [ ] Release polish: strip verbose logs in release (beyond `BudgetLog`); full Play Console narrative + Data safety ([STORE_CHECKLIST.md](STORE_CHECKLIST.md))
+- [x] Release: ProGuard strips `Log.*` in release; Play Data safety notes: [docs/DATA_SAFETY_PLAY_CONSOLE.md](docs/DATA_SAFETY_PLAY_CONSOLE.md) + [STORE_CHECKLIST.md](STORE_CHECKLIST.md) (host privacy URL before release)
 
 ---
 
@@ -45,10 +45,10 @@ Ordered roughly by dependency. Status reflects the codebase as of the latest imp
 
 ## 4. SMS ingestion pipeline
 
-- [x] Arab Bank `BankTemplate` seed + `RegexBankSmsParser` + golden test
+- [x] Arab Bank `BankTemplate` seed + `RegexBankSmsParser` + golden tests
 - [x] `SmsTransactionReceiver` → `SmsReceiverEntryPoint` + IO + `goAsync()`
 - [x] **Sender/body filter:** [`ArabBankSmsFilter`](app/src/main/java/com/anasexpenses/budget/sms/ArabBankSmsFilter.kt)
-- [x] **Inbox backfill helper:** [`SmsInboxBackfill`](app/src/main/java/com/anasexpenses/budget/sms/SmsInboxBackfill.kt) (wire from onboarding/settings opt-in UI if desired)
+- [x] **Inbox backfill helper:** [`SmsInboxBackfill`](app/src/main/java/com/anasexpenses/budget/sms/SmsInboxBackfill.kt) (Settings: import recent)
 - [x] Alerts after ingest (via shared `refreshAlerts` paths)
 
 ---
@@ -56,24 +56,25 @@ Ordered roughly by dependency. Status reflects the codebase as of the latest imp
 ## 5. UI — Onboarding & settings
 
 - [x] Onboarding: SMS disclosure + permission launcher + skip flag
-- [x] First category capture (name, target JOD milli, excluded toggle)
+- [x] First category capture (name, target JOD milli, excluded toggle) + more categories from Home
 - [x] v1 Arab Bank only (no bank picker)
+- [x] Settings: export, inbox backfill, paste-SMS debug, `POST_NOTIFICATIONS` prompt, metrics, privacy link placeholder
 
 ---
 
 ## 6. UI — Budget & months
 
-- [x] Home: categories for current month + spent vs target + progress (included categories only for bar)
-- [ ] Dedicated month picker / rollover confirmation UI (repository has [`rolloverFromPreviousMonth`](app/src/main/java/com/anasexpenses/budget/data/CategoryRepository.kt))
+- [x] Home: categories for selected month + spent vs target + progress
+- [x] Month picker + rollover confirmation (copy from previous month) via [`CategoryRepository.rolloverFromPreviousMonth`](app/src/main/java/com/anasexpenses/budget/data/CategoryRepository.kt)
 
 ---
 
 ## 7. UI — Transactions
 
-- [x] Transaction list (current month)
+- [x] Transaction list (selected budget month)
 - [x] Tap → assign category + rule toggles + back-apply
 - [x] Manual entry FAB (`coffee 3` style)
-- [ ] Full edit screen for amount/date/refund/dismiss (repository supports `updateTransaction`; UI still minimal)
+- [x] Full edit: amount, date, refund, dismiss, category
 
 ---
 
@@ -81,35 +82,35 @@ Ordered roughly by dependency. Status reflects the codebase as of the latest imp
 
 - [x] Channels (`budget_alerts`, `budget_summary`) + [`BudgetNotificationHelper`](app/src/main/java/com/anasexpenses/budget/notifications/BudgetNotificationHelper.kt)
 - [x] Quiet hours respected for pushes
-- [x] Threshold + predictive notifications via coordinator
-- [ ] Combined digest notification (optional); deep links from notifications
+- [x] Threshold + predictive; **InboxStyle digest** when several thresholds in one pass
+- [x] Deep link taps → `anasexpenses://app/transactions` (and Home route)
 
 ---
 
-## 9. WorkManager
+## 9. WorkManager & alarms
 
 - [x] [`DailyBudgetWorker`](app/src/main/java/com/anasexpenses/budget/work/DailyBudgetWorker.kt) — 24h periodic `refreshAlerts`
-- [ ] Exact-time workers for month rollover **00:05** and summary **09:00** (architecture doc; requires `AlarmManager` or expedited work policies — future)
+- [x] **AlarmManager** — rollover **00:05** + summary **09:00** local, `scheduleAll` on boot + after fire ([`BudgetAlarmScheduler`](app/src/main/java/com/anasexpenses/budget/alarm/BudgetAlarmScheduler.kt))
 
 ---
 
 ## 10. Backup & metrics
 
-- [ ] v1 local only ([PRD §12](Budget_Tracker_PRD.md)); optional SAF export
+- [x] v1 local only; **SAF export** of Room DB in Settings
 - [ ] v2 Google Drive
-- [ ] On-device success metrics ([PRD §9](Budget_Tracker_PRD.md))
+- [x] On-device counters: SMS vs manual row counts ([`AppMetricsRepository`](app/src/main/java/com/anasexpenses/budget/data/metrics/AppMetricsRepository.kt), Settings)
 
 ---
 
 ## 11. QA & polish
 
-- [x] Parser unit tests + predictive unit test
+- [x] Parser unit tests (incl. second English golden) + predictive unit test
 - [x] CI: [.github/workflows/android.yml](.github/workflows/android.yml)
-- [ ] Expanded golden SMS corpus; paste-SMS debug UI ([ARCHITECTURE.md](ARCHITECTURE.md))
-- [ ] Arabic SMS templates + RTL when prioritized
+- [x] Paste-SMS debug in Settings; expanded English SMS test corpus
+- [x] Partial `values-ar` (UI); bank SMS still English v1 per product decision; full Arabic SMS matching is future
 
 ---
 
 ## 12. Store readiness
 
-- See [STORE_CHECKLIST.md](STORE_CHECKLIST.md)
+- See [STORE_CHECKLIST.md](STORE_CHECKLIST.md) and [docs/DATA_SAFETY_PLAY_CONSOLE.md](docs/DATA_SAFETY_PLAY_CONSOLE.md)
