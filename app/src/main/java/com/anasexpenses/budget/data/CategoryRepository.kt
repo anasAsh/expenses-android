@@ -26,6 +26,8 @@ class CategoryRepository @Inject constructor(
 ) {
     fun observeMonth(month: String) = categoryDao.observeByMonth(month)
 
+    suspend fun getById(id: Long): CategoryEntity? = categoryDao.getById(id)
+
     suspend fun getByMonth(month: String): List<CategoryEntity> = categoryDao.getByMonth(month)
 
     suspend fun addCategory(
@@ -46,6 +48,7 @@ class CategoryRepository @Inject constructor(
 
     suspend fun updateCategory(entity: CategoryEntity) {
         categoryDao.update(entity)
+        alertCoordinator.refreshAlerts(YearMonth.parse(entity.month))
     }
 
     suspend fun sumIncludedTargetsMilli(month: String): Long =

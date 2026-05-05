@@ -4,9 +4,15 @@ import java.time.LocalDate
 import java.time.YearMonth
 
 /**
- * Budget periods labeled by [YearMonth]: spending runs from [cycleStartDay] on that calendar month
- * through the day before the same numbered day next month (e.g. day 15 → 15th → 14th next month).
- * Start days are clamped to [MIN_START_DAY]–[MAX_START_DAY] so every month has a valid anchor.
+ * Budget periods keyed by [YearMonth] (`YYYY-MM`).
+ *
+ * **Calendar month** ([cycleStartDay] `1`): period is that full calendar month (1st–last day).
+ *
+ * **Pay cycle** ([cycleStartDay] `2`–`28`): the label is the **salary / budget month** that ends the day before
+ * the next transfer. Example with day **25**: **May** runs **Apr 25 – May 24** (May cycle starts Apr 25,
+ * ends May 24). Formula: start = anchor on **previous** calendar month, end = day before anchor on **labeled** month.
+ *
+ * Start days are clamped to [MIN_START_DAY]–[MAX_START_DAY].
  */
 object BudgetCycle {
     const val MIN_START_DAY = 1
@@ -16,8 +22,13 @@ object BudgetCycle {
 
     fun epochDayRangeInclusive(labeledMonth: YearMonth, cycleStartDay: Int): LongRange {
         val d = clampStartDay(cycleStartDay)
-        val startDate = safeDay(labeledMonth, d)
-        val endDate = safeDay(labeledMonth.plusMonths(1), d).minusDays(1)
+        if (d <= MIN_START_DAY) {
+            val start = labeledMonth.atDay(1).toEpochDay()
+            val end = labeledMonth.atEndOfMonth().toEpochDay()
+            return start..end
+        }
+        val startDate = safeDay(labeledMonth.minusMonths(1), d)
+        val endDate = safeDay(labeledMonth, d).minusDays(1)
         return startDate.toEpochDay()..endDate.toEpochDay()
     }
 
@@ -32,6 +43,9 @@ object BudgetCycle {
      */
     fun labeledYearMonthForDate(date: LocalDate, cycleStartDay: Int): YearMonth {
         val d = clampStartDay(cycleStartDay)
+        if (d <= MIN_START_DAY) {
+            return YearMonth.from(date)
+        }
         val epoch = date.toEpochDay()
         val ym = YearMonth.from(date)
         for (delta in longArrayOf(-1L, 0L, 1L)) {

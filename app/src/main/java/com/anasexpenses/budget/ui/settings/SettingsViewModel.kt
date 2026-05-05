@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.anasexpenses.budget.data.CategoryRepository
+import com.anasexpenses.budget.data.local.entity.CategoryEntity
 import com.anasexpenses.budget.data.TransactionRepository
 import com.anasexpenses.budget.data.preferences.UserPreferencesRepository
 import com.anasexpenses.budget.domain.category.CategoryBulkImport
@@ -18,6 +19,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -45,6 +47,11 @@ class SettingsViewModel @Inject constructor(
             SharingStarted.WhileSubscribed(5_000),
             BudgetCycle.MIN_START_DAY,
         )
+
+    val categoriesForSelectedMonth: StateFlow<List<CategoryEntity>> =
+        userPreferencesRepository.selectedMonth.flatMapLatest { ym ->
+            categoryRepository.observeMonth(ym.toString())
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun setBudgetCycleStartDay(day: Int) {
         viewModelScope.launch {

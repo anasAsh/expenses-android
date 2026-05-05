@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -29,6 +31,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -37,12 +41,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.anasexpenses.budget.R
 import com.anasexpenses.budget.data.local.entity.CategoryEntity
@@ -51,6 +57,7 @@ import com.anasexpenses.budget.data.local.entity.TxStatus
 import com.anasexpenses.budget.domain.money.formatJodFromMilli
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,13 +69,21 @@ fun TransactionsScreen(
 ) {
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val selectedBudgetMonth by viewModel.selectedMonth.collectAsStateWithLifecycle()
     val filterCategoryId = viewModel.filterCategoryId
     val filterCategoryName =
         filterCategoryId?.let { fid -> categories.find { it.id == fid }?.name }
 
     var manualOpen by remember { mutableStateOf(false) }
-    var manualLine by remember { mutableStateOf("") }
+    var manualMerchant by remember { mutableStateOf("") }
+    var manualAmount by remember { mutableStateOf("") }
     var manualCategoryId by remember { mutableLongStateOf(-1L) }
+    val monthFormatter = remember {
+        DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
+    }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val manualParseFailedMessage = stringResource(R.string.manual_entry_parse_failed)
 
     var assignOpen by remember { mutableStateOf(false) }
     var assignTxnId by remember { mutableLongStateOf(-1L) }
@@ -78,6 +93,7 @@ fun TransactionsScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (filterCategoryId != null) {
                 TopAppBar(
@@ -104,6 +120,8 @@ fun TransactionsScreen(
         floatingActionButton = {
             FloatingActionButton(onClick = {
                 manualCategoryId = filterCategoryId ?: -1L
+                manualMerchant = ""
+                manualAmount = ""
                 manualOpen = true
             }) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.manual_entry_add))
@@ -139,11 +157,31 @@ fun TransactionsScreen(
             onDismissRequest = { manualOpen = false },
             title = { Text(stringResource(R.string.manual_entry_add)) },
             text = {
-                Column {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                ) {
+                    Text(
+                        text = stringResource(
+                            R.string.category_edit_month_line,
+                            selectedBudgetMonth.format(monthFormatter),
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.padding(bottom = 8.dp))
                     OutlinedTextField(
-                        value = manualLine,
-                        onValueChange = { manualLine = it },
-                        label = { Text(stringResource(R.string.manual_entry_hint)) },
+                        value = manualMerchant,
+                        onValueChange = { manualMerchant = it },
+                        label = { Text(stringResource(R.string.manual_entry_merchant_label)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = manualAmount,
+                        onValueChange = { manualAmount = it },
+                        label = { Text(stringResource(R.string.manual_entry_amount_label)) },
+                        supportingText = { Text(stringResource(R.string.manual_entry_amount_help)) },
+                        singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     CategoryDropdownField(
@@ -159,11 +197,16 @@ fun TransactionsScreen(
                 TextButton(
                     onClick = {
                         val cat = manualCategoryId.takeIf { it > 0L }
-                        viewModel.insertManualLine(manualLine, cat) { ok ->
+                        viewModel.insertManualEntry(manualMerchant, manualAmount, cat) { ok ->
                             if (ok) {
                                 manualOpen = false
-                                manualLine = ""
+                                manualMerchant = ""
+                                manualAmount = ""
                                 manualCategoryId = -1L
+                            } else {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(message = manualParseFailedMessage)
+                                }
                             }
                         }
                     },

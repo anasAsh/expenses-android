@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
 import com.anasexpenses.budget.data.TransactionRepository
+import com.anasexpenses.budget.util.BudgetLog
 import com.anasexpenses.budget.di.ApplicationScope
 import com.anasexpenses.budget.di.IoDispatcher
 import dagger.hilt.android.EntryPointAccessors
@@ -29,11 +30,13 @@ class SmsTransactionReceiver : BroadcastReceiver() {
         val io = entry.ioDispatcher()
 
         val pendingResult = goAsync()
+        // No body pre-filter: paste/debug paths don't use ArabBankSmsFilter; live SMS wording varies.
         val bodies = SmsIntentReader.bodiesFrom(intent)
-            .filter { ArabBankSmsFilter.likelyArabBankTrx(it) }
         scope.launch(io) {
             try {
                 repository.ingestSmsBodies(bodies)
+            } catch (e: Exception) {
+                BudgetLog.v { "sms ingest failed: ${e.javaClass.simpleName}" }
             } finally {
                 pendingResult.finish()
             }

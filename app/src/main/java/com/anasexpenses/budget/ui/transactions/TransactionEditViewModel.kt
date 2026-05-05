@@ -6,18 +6,25 @@ import androidx.lifecycle.viewModelScope
 import com.anasexpenses.budget.data.CategoryRepository
 import com.anasexpenses.budget.data.TransactionRepository
 import com.anasexpenses.budget.data.preferences.UserPreferencesRepository
+import com.anasexpenses.budget.domain.budget.BudgetRollup
 import com.anasexpenses.budget.domain.time.BudgetCycle
 import com.anasexpenses.budget.data.local.entity.CategoryEntity
 import com.anasexpenses.budget.data.local.entity.TransactionEntity
 import com.anasexpenses.budget.data.local.entity.TxStatus
 import com.anasexpenses.budget.data.local.entity.TxSource
 import com.anasexpenses.budget.domain.PrdConstants
+import com.anasexpenses.budget.domain.dedup.DedupHash
+import com.anasexpenses.budget.domain.merchant.MerchantNormalizer
 import com.anasexpenses.budget.domain.money.JodMoney
+import com.anasexpenses.budget.domain.time.epochMillisFrom
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
+import java.time.ZoneId
+import java.util.Locale
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -45,12 +52,31 @@ class TransactionEditViewModel @Inject constructor(
         .flatMapLatest { e ->
             userPreferencesRepository.budgetCycleStartDay.flatMapLatest { startDay ->
                 val ym = BudgetCycle.labeledYearMonthForDate(LocalDate.ofEpochDay(e.dateEpochDay), startDay)
-                categoryRepository.observeMonth(ym.toString())
+                combine(
+                    transactionRepository.observeTransactionsForMonth(ym),
+                    categoryRepository.observeMonth(ym.toString()),
+                ) { txns, cats ->
+                    val spendById = txns
+                        .filter {
+                            it.categoryId != null &&
+                                it.categoryId!! > 0L &&
+                                it.status != TxStatus.DISMISSED
+                        }
+                        .groupBy { it.categoryId!! }
+                        .mapValues { (_, list) ->
+                            list.sumOf { BudgetRollup.signedAmountMilliJod(it) }
+                        }
+                    cats.sortedWith(
+                        compareByDescending<CategoryEntity> { spendById[it.id] ?: 0L }
+                            .thenBy { it.name.lowercase(Locale.getDefault()) },
+                    )
+                }
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun save(
+        merchantText: String,
         amountJodText: String,
         dateText: String,
         isRefund: Boolean,
@@ -60,6 +86,11 @@ class TransactionEditViewModel @Inject constructor(
     ) {
         val entity = transaction.value
         if (entity == null) {
+            onResult(false)
+            return
+        }
+        val merchant = merchantText.trim()
+        if (merchant.isEmpty()) {
             onResult(false)
             return
         }
@@ -93,17 +124,38 @@ class TransactionEditViewModel @Inject constructor(
             }
         }
         val secondOfDay = entity.timeSecondOfDay
+        val normMerchant = MerchantNormalizer.normalizedMerchant(merchant)
+        val token = MerchantNormalizer.merchantToken(merchant)
+        val epochDay = date.toEpochDay()
+        val zone = ZoneId.systemDefault()
+        val dedupHash = DedupHash.hash(
+            entity.cardLast4,
+            milli,
+            epochMillisFrom(epochDay, secondOfDay, zone),
+            token,
+        )
         val updated = entity.copy(
+            merchant = merchant,
+            normalizedMerchant = normMerchant,
+            normalizedMerchantToken = token,
             amountMilliJod = milli,
-            dateEpochDay = date.toEpochDay(),
+            dateEpochDay = epochDay,
             isRefund = isRefund,
             status = status,
             categoryId = categoryId,
             timeSecondOfDay = secondOfDay,
+            dedupHash = dedupHash,
         )
         viewModelScope.launch {
             transactionRepository.updateTransaction(updated)
             onResult(true)
+        }
+    }
+
+    fun deleteTransaction(onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val ok = transactionRepository.deleteTransaction(transactionId)
+            onResult(ok)
         }
     }
 }

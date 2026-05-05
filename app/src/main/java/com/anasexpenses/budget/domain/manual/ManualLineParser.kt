@@ -10,7 +10,7 @@ object ManualLineParser {
         val m = pattern.find(line.trim()) ?: return null
         val label = m.groupValues[1].trim().ifEmpty { return null }
         val milli = try {
-            JodMoney.parseToMilliJod(m.groupValues[2])
+            JodMoney.parseToMilliJod(m.groupValues[2].replace(',', '.'))
         } catch (_: Exception) {
             return null
         }

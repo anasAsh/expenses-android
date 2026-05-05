@@ -7,7 +7,6 @@ import com.anasexpenses.budget.data.local.entity.AlertEventEntity
 import com.anasexpenses.budget.data.local.entity.AlertThresholdType
 import com.anasexpenses.budget.data.preferences.UserPreferencesRepository
 import com.anasexpenses.budget.domain.alerts.PredictiveEvaluator
-import com.anasexpenses.budget.domain.alerts.QuietHours
 import com.anasexpenses.budget.domain.alerts.SmallCategoryGate
 import com.anasexpenses.budget.domain.time.BudgetCycle
 import com.anasexpenses.budget.notifications.BudgetNotificationHelper
@@ -58,7 +57,6 @@ class BudgetAlertCoordinator @Inject constructor(
             for ((type, pct, tierTitle) in tiers) {
                 if (spent * 100L < target * pct) continue
                 if (alertEventDao.countFor(c.id, monthStr, type) > 0) continue
-                if (QuietHours.isQuietNow()) continue
 
                 alertEventDao.insert(
                     AlertEventEntity(
@@ -110,7 +108,6 @@ class BudgetAlertCoordinator @Inject constructor(
             val projected = PredictiveEvaluator.projectedMonthEndSpend(spent, dayOfCycle, dim)
             if (!PredictiveEvaluator.exceedsPredictiveThreshold(projected, target)) continue
             if (alertEventDao.countFor(c.id, monthStr, AlertThresholdType.PREDICTIVE) > 0) continue
-            if (QuietHours.isQuietNow()) continue
 
             alertEventDao.insert(
                 AlertEventEntity(

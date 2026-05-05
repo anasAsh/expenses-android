@@ -12,6 +12,7 @@ import com.anasexpenses.budget.domain.budget.BudgetRollup
 import com.anasexpenses.budget.domain.money.JodMoney
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.YearMonth
+import java.util.Locale
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,14 @@ data class CategorySpendRow(
     val category: CategoryEntity,
     val spentMilliJod: Long,
 )
+
+/** Sum of monthly targets and spend for categories that count toward the month plan (!excluded, target > 0). */
+data class MonthBudgetSummary(
+    val totalTargetMilliJod: Long,
+    val includedSpentMilliJod: Long,
+) {
+    val remainingMilliJod: Long get() = totalTargetMilliJod - includedSpentMilliJod
+}
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -52,9 +61,31 @@ class HomeViewModel @Inject constructor(
                         .filter { it.categoryId == c.id && it.status != TxStatus.DISMISSED }
                         .sumOf { BudgetRollup.signedAmountMilliJod(it) }
                     CategorySpendRow(c, spent)
-                }
+                }.sortedWith(
+                    compareByDescending<CategorySpendRow> { it.spentMilliJod }
+                        .thenBy { it.category.name.lowercase(Locale.getDefault()) },
+                )
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val monthBudgetSummary: StateFlow<MonthBudgetSummary> =
+        rows.map { list ->
+            var target = 0L
+            var spent = 0L
+            for (row in list) {
+                val c = row.category
+                val t = c.monthlyTargetMilliJod
+                if (!c.excludedFromSpend && t > 0L) {
+                    target += t
+                    spent += row.spentMilliJod
+                }
+            }
+            MonthBudgetSummary(totalTargetMilliJod = target, includedSpentMilliJod = spent)
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            MonthBudgetSummary(0L, 0L),
+        )
 
     /** Spend in transactions with no category (non-dismissed), signed milli-JOD. */
     val unassignedSpendMilliJod: StateFlow<Long> =

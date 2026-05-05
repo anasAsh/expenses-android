@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -48,6 +49,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.anasexpenses.budget.R
 import com.anasexpenses.budget.domain.money.formatJodFromMilli
+import com.anasexpenses.budget.ui.permissions.SmsBankPermissionBanner
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -57,9 +59,11 @@ import kotlinx.coroutines.launch
 fun HomeScreen(
     modifier: Modifier = Modifier,
     onCategoryClick: (Long) -> Unit = {},
+    onEditCategory: (Long) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val rows by viewModel.rows.collectAsStateWithLifecycle()
+    val monthBudget by viewModel.monthBudgetSummary.collectAsStateWithLifecycle()
     val unassignedSpend by viewModel.unassignedSpendMilliJod.collectAsStateWithLifecycle()
     val selectedMonth by viewModel.selectedMonth.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
@@ -104,6 +108,7 @@ fun HomeScreen(
                 .padding(padding)
                 .padding(16.dp),
         ) {
+            SmsBankPermissionBanner(modifier = Modifier.padding(bottom = 12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -141,6 +146,38 @@ fun HomeScreen(
                     Text(selectedMonth.format(monthFormatter))
                 }
             }
+            if (monthBudget.totalTargetMilliJod > 0L) {
+                Text(
+                    text = stringResource(
+                        R.string.home_month_total_budget,
+                        formatJodFromMilli(monthBudget.totalTargetMilliJod),
+                    ),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                val rem = monthBudget.remainingMilliJod
+                Text(
+                    text = if (rem >= 0L) {
+                        stringResource(
+                            R.string.home_month_remaining,
+                            formatJodFromMilli(rem),
+                        )
+                    } else {
+                        stringResource(
+                            R.string.home_month_over_budget,
+                            formatJodFromMilli(-rem),
+                        )
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.home_month_budget_no_targets),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = stringResource(
                     R.string.home_unassigned_line,
@@ -157,6 +194,7 @@ fun HomeScreen(
                     CategoryCard(
                         row = row,
                         onClick = { onCategoryClick(row.category.id) },
+                        onEditClick = { onEditCategory(row.category.id) },
                         onDeleteClick = { deleteCategoryRow = row },
                     )
                 }
@@ -328,6 +366,7 @@ private fun categoryCardContainerColor(row: CategorySpendRow): Color {
 private fun CategoryCard(
     row: CategorySpendRow,
     onClick: () -> Unit,
+    onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
     val target = row.category.monthlyTargetMilliJod
@@ -362,6 +401,12 @@ private fun CategoryCard(
                             style = MaterialTheme.typography.labelSmall,
                         )
                     }
+                }
+                IconButton(onClick = onEditClick) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = stringResource(R.string.home_edit_category_cd),
+                    )
                 }
                 IconButton(
                     onClick = onDeleteClick,

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">أنفقة أنس</string>
+    <string name="app_name">Expenses</string>
     <string name="nav_home">الرئيسية</string>
     <string name="nav_transactions">المعاملات</string>
     <string name="nav_settings">الإعدادات</string>
@@ -11,6 +11,11 @@
     <string name="category_target_jod_label">الهدف الشهري (دينار)</string>
     <string name="onboarding_finish">ابدأ الميزانية</string>
     <string name="home_title">هذا الشهر</string>
+    <string name="home_month_total_budget">إجمالي الميزانية: %1$s دينار</string>
+    <string name="home_month_remaining">المتبقي: %1$s دينار</string>
+    <string name="home_month_over_budget">تجاوز الميزانية بمقدار: %1$s دينار</string>
+    <string name="home_month_budget_no_targets">أضِف أهدافاً شهرية للفئات لعرض إجمالي الميزانية.</string>
+    <string name="home_sms_permission_banner">لن تُعالَج رسائل البنك الواردة حتى يُسمح بإذن الرسائل. لصق عيّنة في الإعدادات يعمل بدونه.</string>
     <string name="home_share_summary">مشاركة الملخص</string>
     <string name="home_share_chooser">مشاركة ملخص الميزانية</string>
     <string name="home_share_subject">ملخص الميزانية</string>
@@ -27,7 +32,7 @@
     <string name="cd_navigate_up">التنقل للأعلى</string>
     <string name="settings_title">الإعدادات</string>
     <string name="settings_budget_cycle_title">بداية الشهر الميزانوي</string>
-    <string name="settings_budget_cycle_help">كل فترة ميزانية تبدأ في هذا اليوم من التقويم وتنتهي في اليوم السابق لنفس التاريخ من الشهر التالي. الأيام 1–28 فقط حتى يكون لكل شهر بداية صالحة.</string>
+    <string name="settings_budget_cycle_help">اليوم 1: الميزانية حسب الشهر التقويمي. الأيام 2–28: الشهر المختار هو شهر الراتب/الميزانية؛ تبدأ الفترة في ذلك اليوم من الشهر السابق وتنتهي في اليوم السابق لذلك اليوم من الشهر المعروض (مثلاً 25 → أيار من 25 نيسان إلى 24 أيار). مسموح 1–28 فقط.</string>
     <string name="settings_budget_cycle_current">يوم البداية الحالي: %1$d</string>
     <string name="settings_budget_cycle_open_menu">اختر اليوم</string>
     <string name="settings_category_import_title">استيراد الفئات</string>
@@ -35,6 +40,10 @@
     <string name="settings_category_import_help">فئة في كل سطر. الهدف شهري بالدينار (مثل 100 أو 99.500).</string>
     <string name="settings_category_import_button">استيراد إلى شهر الميزانية الحالي</string>
     <string name="settings_category_import_result">أُضيف %1$d · تُخطّى %2$d مكرّراً · %3$d أسطر بأخطاء تحليل</string>
+    <string name="manual_entry_merchant_label">التاجر / ملاحظة</string>
+    <string name="manual_entry_amount_label">المبلغ (دينار)</string>
+    <string name="manual_entry_amount_help">مبلغ موجب، حتى 3 منازل عشرية (مثل 12.500)</string>
+    <string name="manual_entry_parse_failed">تعذّر الحفظ. أدخل اسماً ومبلغاً بالدينار.</string>
     <string name="manual_entry_add">إضافة يدوية</string>
     <string name="assign_category_title">تعيين الفئة</string>
     <string name="transactions_category_pick">اختر فئة</string>
@@ -42,5 +51,21 @@
     <string name="sms_permission_grant">السماح بالرسائل</string>
     <string name="sms_permission_skip">تخطّي — إدخال يدوي</string>
     <string name="transaction_edit_title">تعديل معاملة</string>
+    <string name="transaction_edit_merchant">التاجر / الوصف</string>
     <string name="transaction_edit_save">حفظ</string>
+    <string name="transaction_delete">حذف المعاملة</string>
+    <string name="transaction_delete_title">حذف المعاملة؟</string>
+    <string name="transaction_delete_body">ستُزال من الميزانية والقوائم. لا يمكن التراجع.</string>
+    <string name="transaction_delete_confirm">حذف</string>
+    <string name="home_edit_category_cd">تعديل الفئة</string>
+    <string name="category_edit_title">تعديل الفئة</string>
+    <string name="category_edit_save">حفظ</string>
+    <string name="category_edit_month_line">شهر الميزانية: %1$s</string>
+    <string name="category_edit_not_found">الفئة غير موجودة.</string>
+    <string name="category_name_invalid">أدخل اسماً.</string>
+    <string name="category_duplicate_name">فئة أخرى في هذا الشهر تحمل هذا الاسم.</string>
+    <string name="settings_categories_edit_title">الفئات</string>
+    <string name="settings_categories_edit_help">عدّل الأسماء والأهداف الشهرية لشهر الميزانية الحالي (كما في الشاشة الرئيسية).</string>
+    <string name="settings_category_budget_line">الهدف الشهري %1$s دينار</string>
+    <string name="settings_category_edit_action">تعديل</string>
 </resources>

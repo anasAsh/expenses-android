@@ -12,4 +12,8 @@ sealed class Route(val route: String) {
     data object TransactionEdit : Route("transactionEdit/{id}") {
         fun routeWithArgs(id: Long) = "transactionEdit/$id"
     }
+
+    data object CategoryEdit : Route("categoryEdit/{categoryId}") {
+        fun routeWithArgs(categoryId: Long) = "categoryEdit/$categoryId"
+    }
 }

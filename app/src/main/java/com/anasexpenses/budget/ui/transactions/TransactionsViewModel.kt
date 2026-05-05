@@ -7,33 +7,55 @@ import com.anasexpenses.budget.data.CategoryRepository
 import com.anasexpenses.budget.data.TransactionRepository
 import com.anasexpenses.budget.data.local.entity.CategoryEntity
 import com.anasexpenses.budget.data.local.entity.TransactionEntity
+import com.anasexpenses.budget.data.local.entity.TxStatus
 import com.anasexpenses.budget.data.preferences.UserPreferencesRepository
+import com.anasexpenses.budget.domain.budget.BudgetRollup
+import com.anasexpenses.budget.domain.money.JodMoney
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.YearMonth
+import java.util.Locale
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @HiltViewModel
 class TransactionsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     categoryRepository: CategoryRepository,
     private val transactionRepository: TransactionRepository,
-    userPreferencesRepository: UserPreferencesRepository,
+    private val userPreferencesRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
     /** When non-null, list is restricted to this category for the selected month. */
     val filterCategoryId: Long? =
         savedStateHandle.get<Long>("categoryId")?.takeIf { it > 0L }
 
-    val transactions: StateFlow<List<TransactionEntity>> =
+    /** Same budget month as Home (controls which transactions load). Shown on manual-add dialog. */
+    val selectedMonth: StateFlow<YearMonth> =
+        userPreferencesRepository.selectedMonth.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            YearMonth.now(),
+        )
+
+    /** Full month list (used for category spend ordering in dropdowns). */
+    private val monthTransactionsAll: StateFlow<List<TransactionEntity>> =
         userPreferencesRepository.selectedMonth
             .flatMapLatest { month ->
                 transactionRepository.observeTransactionsForMonth(month)
             }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val transactions: StateFlow<List<TransactionEntity>> =
+        monthTransactionsAll
             .map { list ->
                 val fid = filterCategoryId
                 val filtered =
@@ -46,17 +68,59 @@ class TransactionsViewModel @Inject constructor(
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val categories: StateFlow<List<CategoryEntity>> =
+    private val categoriesRaw: StateFlow<List<CategoryEntity>> =
         userPreferencesRepository.selectedMonth
             .flatMapLatest { month ->
                 categoryRepository.observeMonth(month.toString())
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun insertManualLine(line: String, categoryId: Long?, onResult: (Boolean) -> Unit) {
+    /** Sorted by signed spend this month (highest first), matching Home rollup semantics. */
+    val categories: StateFlow<List<CategoryEntity>> =
+        combine(monthTransactionsAll, categoriesRaw) { txns, cats ->
+            val spendById = txns
+                .filter {
+                    it.categoryId != null &&
+                        it.categoryId!! > 0L &&
+                        it.status != TxStatus.DISMISSED
+                }
+                .groupBy { it.categoryId!! }
+                .mapValues { (_, list) ->
+                    list.sumOf { BudgetRollup.signedAmountMilliJod(it) }
+                }
+            cats.sortedWith(
+                compareByDescending<CategoryEntity> { spendById[it.id] ?: 0L }
+                    .thenBy { it.name.lowercase(Locale.getDefault()) },
+            )
+        }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun insertManualEntry(
+        merchant: String,
+        amountJodText: String,
+        categoryId: Long?,
+        onResult: (Boolean) -> Unit,
+    ) {
         viewModelScope.launch {
-            val ok = transactionRepository.insertManualLine(line, categoryId)
-            onResult(ok)
+            val month = userPreferencesRepository.selectedMonth.first()
+            val milli = runCatching {
+                JodMoney.parseToMilliJod(amountJodText.trim().replace(',', '.'))
+            }.getOrNull()
+            val ok =
+                !merchant.isBlank() &&
+                    milli != null &&
+                    milli > 0L &&
+                    runCatching {
+                        transactionRepository.insertManualEntry(
+                            merchant.trim(),
+                            milli,
+                            categoryId,
+                            month,
+                        )
+                    }.getOrDefault(false)
+            withContext(Dispatchers.Main.immediate) {
+                onResult(ok)
+            }
         }
     }
 

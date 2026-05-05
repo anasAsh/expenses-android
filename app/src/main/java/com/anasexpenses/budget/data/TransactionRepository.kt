@@ -51,27 +51,60 @@ class TransactionRepository @Inject constructor(
     fun observeNeedsReviewCount(): Flow<Int> = transactionDao.observeNeedsReviewCount()
 
     suspend fun ingestSmsBodies(rawBodies: List<String>) {
-        val template = bankTemplateDao.getByBankAndLanguage(BudgetSeed.BANK_ID_ARAB, "en") ?: return
+        val template = bankTemplateDao.getByBankAndLanguage(BudgetSeed.BANK_ID_ARAB, "en")
         for (body in rawBodies) {
-            ingestArabBankSms(body, template)
+            ingestArabBankSms(normalizeBankSmsBody(body), template)
         }
     }
 
-    private suspend fun ingestArabBankSms(rawSms: String, template: BankTemplateEntity) {
-        when (val outcome = RegexBankSmsParser.parse(template.regexPattern, rawSms)) {
+    private fun normalizeBankSmsBody(raw: String): String {
+        var s = raw.trim().replace('\r', '\n')
+        s = s.replace(Regex("[\\u200e\\u200f\\u200c\\u200d\\ufeff]"), "")
+        return s
+            .replace('\u00a0', ' ')
+            .replace('\u202f', ' ')
+    }
+
+    /**
+     * Arabic Click (كليك) is tried before English regexes so real bank Arabic SMS is not affected by DB templates.
+     * Then: DB template (if any), shipped English regex, then Arabic Click again if `كليك` was absent on first pass.
+     */
+    private fun parseArabBankSms(rawSms: String, template: BankTemplateEntity?): ParseOutcome {
+        if (rawSms.contains("كليك")) {
+            when (val click = RegexBankSmsParser.parseArabClickCredit(rawSms)) {
+                is ParseOutcome.Success -> return click
+                else -> {}
+            }
+        }
+        if (template != null) {
+            when (val o = RegexBankSmsParser.parse(template.regexPattern, rawSms)) {
+                is ParseOutcome.Success -> return o
+                else -> {}
+            }
+        }
+        when (val o = RegexBankSmsParser.parse(BudgetSeed.ARAB_BANK_TRX_EN_REGEX, rawSms)) {
+            is ParseOutcome.Success -> return o
+            else -> {}
+        }
+        return RegexBankSmsParser.parseArabClickCredit(rawSms)
+    }
+
+    private suspend fun ingestArabBankSms(rawSms: String, template: BankTemplateEntity?) {
+        if (rawSms.isEmpty()) return
+        when (val outcome = parseArabBankSms(rawSms, template)) {
             ParseOutcome.NoMatch -> return
             is ParseOutcome.Failure -> return
             is ParseOutcome.Success -> {
                 val fields = outcome.fields
                 if (!fields.currency.equals("JOD", ignoreCase = true)) return
-                insertIfNotDuplicate(rawSms, template.id, fields, outcome.confidence)
+                insertIfNotDuplicate(rawSms, template?.id, fields, outcome.confidence)
             }
         }
     }
 
     private suspend fun insertIfNotDuplicate(
         rawSms: String,
-        bankTemplateId: Long,
+        bankTemplateId: Long?,
         fields: ParsedBankSms,
         confidence: Float,
     ) {
@@ -135,27 +168,47 @@ class TransactionRepository @Inject constructor(
         alertCoordinator.refreshAlerts(BudgetCycle.labeledYearMonthForDate(txnDate, cycleStartDay))
     }
 
+    /** One-line format: `merchant amount` (see [ManualLineParser]). */
     suspend fun insertManualLine(
         rawLine: String,
         chosenCategoryId: Long?,
+        budgetMonth: YearMonth,
     ): Boolean {
         val parsed = ManualLineParser.parse(rawLine) ?: return false
-        val (label, milli) = parsed
+        return insertManualEntry(parsed.first, parsed.second, chosenCategoryId, budgetMonth)
+    }
+
+    /**
+     * Structured manual entry (preferred from UI). [merchantLabel] non-blank, [amountMilliJod] positive.
+     */
+    suspend fun insertManualEntry(
+        merchantLabel: String,
+        amountMilliJod: Long,
+        chosenCategoryId: Long?,
+        budgetMonth: YearMonth,
+    ): Boolean {
+        val label = merchantLabel.trim()
+        if (label.isEmpty() || amountMilliJod <= 0L) return false
         val norm = MerchantNormalizer.normalizedMerchant(label)
         val token = MerchantNormalizer.merchantToken(label)
         val categoryId = chosenCategoryId?.takeIf { it > 0L }
-        val today = LocalDate.now(zone)
+        val cycleStartDay = userPreferencesRepository.budgetCycleStartDay.first()
+        val range = BudgetCycle.epochDayRangeInclusive(budgetMonth, cycleStartDay)
+        val todayEpoch = LocalDate.now(zone).toEpochDay()
+        // Manual entry must fall in the budget month the user is viewing; otherwise it never appears in the list.
+        val dateEpochDay = todayEpoch.coerceIn(range.first, range.last)
+        val txnDate = LocalDate.ofEpochDay(dateEpochDay)
         val now = System.currentTimeMillis()
-        val dedupHash = DedupHash.hash(null, milli, epochMillisFrom(today.toEpochDay(), 0, zone), token)
+        val dedupHash = DedupHash.hash(null, amountMilliJod, epochMillisFrom(dateEpochDay, 0, zone), token)
         transactionDao.insert(
             TransactionEntity(
-                amountMilliJod = milli,
+                amountMilliJod = amountMilliJod,
                 currency = "JOD",
                 merchant = label,
                 normalizedMerchant = norm,
                 normalizedMerchantToken = token,
                 categoryId = categoryId,
-                dateEpochDay = today.toEpochDay(),
+                dateEpochDay = dateEpochDay,
                 timeSecondOfDay = java.time.LocalTime.now(zone).toSecondOfDay(),
                 source = TxSource.MANUAL,
                 confidence = 1f,
@@ -170,8 +223,7 @@ class TransactionRepository @Inject constructor(
             ),
         )
         appMetricsRepository.recordManualTransactionInserted()
-        val cycleStartDay = userPreferencesRepository.budgetCycleStartDay.first()
-        alertCoordinator.refreshAlerts(BudgetCycle.labeledYearMonthForDate(today, cycleStartDay))
+        alertCoordinator.refreshAlerts(BudgetCycle.labeledYearMonthForDate(txnDate, cycleStartDay))
         return true
     }
 
@@ -180,6 +232,15 @@ class TransactionRepository @Inject constructor(
         val cycleStartDay = userPreferencesRepository.budgetCycleStartDay.first()
         val ym = BudgetCycle.labeledYearMonthForDate(LocalDate.ofEpochDay(entity.dateEpochDay), cycleStartDay)
         alertCoordinator.refreshAlerts(ym)
+    }
+
+    suspend fun deleteTransaction(id: Long): Boolean {
+        val t = transactionDao.getById(id) ?: return false
+        if (transactionDao.deleteById(id) < 1) return false
+        val cycleStartDay = userPreferencesRepository.budgetCycleStartDay.first()
+        val ym = BudgetCycle.labeledYearMonthForDate(LocalDate.ofEpochDay(t.dateEpochDay), cycleStartDay)
+        alertCoordinator.refreshAlerts(ym)
+        return true
     }
 
     suspend fun assignCategoryAndOptionalRule(

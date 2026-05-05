@@ -42,6 +42,7 @@ import androidx.navigation.navDeepLink
 import com.anasexpenses.budget.ui.home.HomeScreen
 import com.anasexpenses.budget.ui.navigation.Route
 import com.anasexpenses.budget.ui.permissions.PostNotificationsPermissionEffect
+import com.anasexpenses.budget.ui.category.CategoryEditScreen
 import com.anasexpenses.budget.ui.settings.SettingsScreen
 import com.anasexpenses.budget.ui.transactions.TransactionEditScreen
 import com.anasexpenses.budget.ui.transactions.TransactionsScreen
@@ -173,6 +174,9 @@ private fun BudgetRootScaffold() {
                     onCategoryClick = { categoryId ->
                         navController.navigate(Route.TransactionsForCategory.routeWithArgs(categoryId))
                     },
+                    onEditCategory = { categoryId ->
+                        navController.navigate(Route.CategoryEdit.routeWithArgs(categoryId))
+                    },
                 )
             }
             composable(
@@ -209,7 +213,21 @@ private fun BudgetRootScaffold() {
             ) {
                 TransactionEditScreen(onClose = { navController.popBackStack() })
             }
-            composable(Route.Settings.route) { SettingsScreen() }
+            composable(Route.Settings.route) {
+                SettingsScreen(
+                    onEditCategory = { categoryId ->
+                        navController.navigate(Route.CategoryEdit.routeWithArgs(categoryId))
+                    },
+                )
+            }
+            composable(
+                route = Route.CategoryEdit.route,
+                arguments = listOf(
+                    navArgument("categoryId") { type = NavType.LongType },
+                ),
+            ) {
+                CategoryEditScreen(onClose = { navController.popBackStack() })
+            }
         }
     }
 }

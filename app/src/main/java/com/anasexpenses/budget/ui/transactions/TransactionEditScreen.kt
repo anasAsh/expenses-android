@@ -12,7 +12,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -23,6 +25,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -61,6 +64,7 @@ fun TransactionEditScreen(
     }
     val initial = entity!!
     val iso = remember { DateTimeFormatter.ISO_LOCAL_DATE }
+    var merchantText by remember(initial.id) { mutableStateOf(initial.merchant) }
     var amountText by remember(initial.id) { mutableStateOf(formatJodFromMilli(initial.amountMilliJod)) }
     var dateText by remember(initial.id) {
         mutableStateOf(LocalDate.ofEpochDay(initial.dateEpochDay).format(iso))
@@ -69,6 +73,7 @@ fun TransactionEditScreen(
     var dismissed by remember(initial.id) { mutableStateOf(initial.status == TxStatus.DISMISSED) }
     var categoryId by remember(initial.id) { mutableLongStateOf(initial.categoryId ?: -1L) }
     var fieldError by remember { mutableStateOf(false) }
+    var deleteConfirmOpen by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -93,7 +98,15 @@ fun TransactionEditScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(initial.merchant, style = MaterialTheme.typography.titleMedium)
+            OutlinedTextField(
+                value = merchantText,
+                onValueChange = { merchantText = it; fieldError = false },
+                label = { Text(stringResource(R.string.transaction_edit_merchant)) },
+                singleLine = false,
+                minLines = 1,
+                maxLines = 3,
+                modifier = Modifier.fillMaxWidth(),
+            )
             OutlinedTextField(
                 value = amountText,
                 onValueChange = { amountText = it; fieldError = false },
@@ -136,6 +149,7 @@ fun TransactionEditScreen(
             Button(
                 onClick = {
                     viewModel.save(
+                        merchantText,
                         amountText,
                         dateText,
                         isRefund,
@@ -147,6 +161,41 @@ fun TransactionEditScreen(
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.transaction_edit_save)) }
+            TextButton(
+                onClick = { deleteConfirmOpen = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
+            ) { Text(stringResource(R.string.transaction_delete)) }
+        }
+
+        if (deleteConfirmOpen) {
+            AlertDialog(
+                onDismissRequest = { deleteConfirmOpen = false },
+                title = { Text(stringResource(R.string.transaction_delete_title)) },
+                text = { Text(stringResource(R.string.transaction_delete_body)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            deleteConfirmOpen = false
+                            viewModel.deleteTransaction { ok ->
+                                if (ok) onClose()
+                            }
+                        },
+                    ) {
+                        Text(
+                            stringResource(R.string.transaction_delete_confirm),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { deleteConfirmOpen = false }) {
+                        Text(stringResource(android.R.string.cancel))
+                    }
+                },
+            )
         }
     }
 }

@@ -28,8 +28,9 @@ class BudgetSeed @Inject constructor(
         /**
          * Capture groups: 1 card last4, 2 merchant, 3 amount, 4 date (dd-MMM-yyyy), 5 time (HH:mm).
          * Ignores trailing balance clause per PRD.
+         * `(?i)` — bank copy sometimes changes casing; timezone suffix is optional / may vary (GMT±n).
          */
         const val ARAB_BANK_TRX_EN_REGEX =
-            """A Trx using Card XXXX(\d{4}) from (.+?) for JOD ([\d.]+) on (\d{2}-[A-Za-z]{3}-\d{4}) at (\d{2}:\d{2}) GMT\+3"""
+            """(?i)A Trx using Card XXXX(\d{4}) from (.+?) for JOD ([\d.]+) on (\d{2}-[A-Za-z]{3}-\d{4}) at (\d{2}:\d{2})(?:\s+GMT[+-]\d+)?"""
     }
 }

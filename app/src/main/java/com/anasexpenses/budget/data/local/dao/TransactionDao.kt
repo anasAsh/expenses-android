@@ -66,6 +66,9 @@ interface TransactionDao {
     @Update
     suspend fun update(entity: TransactionEntity)
 
+    @Query("DELETE FROM transactions WHERE id = :id")
+    suspend fun deleteById(id: Long): Int
+
     @Query("SELECT * FROM transactions WHERE dedup_hash = :hash LIMIT 1")
     suspend fun findByDedupHash(hash: String): TransactionEntity?
 
