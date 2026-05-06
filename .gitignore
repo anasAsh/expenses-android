@@ -3,14 +3,49 @@
 build/
 **/build/
 
-# Android
-local.properties
+# Android Studio / IntelliJ
 *.iml
 .idea/
-.DS_Store
+*.ipr
+*.iws
+.navigation/
 captures/
+
+# Local machine / SDK
+local.properties
+.DS_Store
+
+# Native / CMake
 .externalNativeBuild/
 .cxx/
 
 # Kotlin
 .kotlin/
+
+# Built artifacts
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+
+# Outputs
+bin/
+gen/
+out/
+
+# Signing (never commit keys)
+*.jks
+*.keystore
+*.p12
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Misc
+*.log
+*.orig
+*~
