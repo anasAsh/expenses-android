@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -25,6 +26,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -226,12 +228,20 @@ fun TransactionsScreen(
             title = { Text(stringResource(R.string.assign_category_title)) },
             text = {
                 Column {
-                    TextButton(
+                    FilledTonalButton(
                         onClick = {
                             onEditTransaction(assignTxnId)
                             assignOpen = false
                         },
-                    ) { Text(stringResource(R.string.transaction_edit_from_list)) }
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 8.dp),
+                        )
+                        Text(stringResource(R.string.transaction_edit_from_list))
+                    }
                     CategoryDropdownField(
                         categories = categories,
                         selectedCategoryId = assignCatId,

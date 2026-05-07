@@ -60,6 +60,7 @@
     <string name="home_edit_category_cd">تعديل الفئة</string>
     <string name="category_edit_title">تعديل الفئة</string>
     <string name="category_edit_save">حفظ</string>
+    <string name="transaction_edit_from_list">فتح شاشة تعديل المعاملة كاملة</string>
     <string name="category_edit_month_line">شهر الميزانية: %1$s</string>
     <string name="category_edit_not_found">الفئة غير موجودة.</string>
     <string name="category_name_invalid">أدخل اسماً.</string>

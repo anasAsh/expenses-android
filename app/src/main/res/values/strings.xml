@@ -108,5 +108,5 @@
     <string name="transaction_delete_title">Delete transaction?</string>
     <string name="transaction_delete_body">This removes it from your budget and lists. This cannot be undone.</string>
     <string name="transaction_delete_confirm">Delete</string>
-    <string name="transaction_edit_from_list">Edit details</string>
+    <string name="transaction_edit_from_list">Open full transaction editor</string>
 </resources>
