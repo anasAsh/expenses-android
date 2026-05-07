@@ -214,11 +214,7 @@ private fun BudgetRootScaffold() {
                 TransactionEditScreen(onClose = { navController.popBackStack() })
             }
             composable(Route.Settings.route) {
-                SettingsScreen(
-                    onEditCategory = { categoryId ->
-                        navController.navigate(Route.CategoryEdit.routeWithArgs(categoryId))
-                    },
-                )
+                SettingsScreen()
             }
             composable(
                 route = Route.CategoryEdit.route,

@@ -3,13 +3,10 @@ package com.anasexpenses.budget.ui.settings
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,17 +33,14 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.anasexpenses.budget.R
-import com.anasexpenses.budget.domain.money.formatJodFromMilli
 
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
-    onEditCategory: (Long) -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val smsRows by viewModel.smsTransactionRows.collectAsStateWithLifecycle()
     val manualRows by viewModel.manualTransactionRows.collectAsStateWithLifecycle()
-    val categories by viewModel.categoriesForSelectedMonth.collectAsStateWithLifecycle()
     val cycleDay by viewModel.budgetCycleStartDay.collectAsStateWithLifecycle()
     var cycleMenuOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -102,78 +96,6 @@ fun SettingsScreen(
                     )
                 }
             }
-        }
-
-        Text(stringResource(R.string.settings_categories_edit_title), style = MaterialTheme.typography.titleMedium)
-        Text(
-            stringResource(R.string.settings_categories_edit_help),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Column(
-            modifier = Modifier.heightIn(max = 280.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            for (c in categories) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onEditCategory(c.id) }
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(c.name, style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            stringResource(
-                                R.string.settings_category_budget_line,
-                                formatJodFromMilli(c.monthlyTargetMilliJod),
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Text(
-                        stringResource(R.string.settings_category_edit_action),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
-        }
-
-        Text(stringResource(R.string.settings_category_import_title), style = MaterialTheme.typography.titleMedium)
-        var importCategoriesText by remember { mutableStateOf("") }
-        OutlinedTextField(
-            value = importCategoriesText,
-            onValueChange = { importCategoriesText = it },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 8,
-            label = { Text(stringResource(R.string.settings_category_import_label)) },
-            supportingText = { Text(stringResource(R.string.settings_category_import_help)) },
-        )
-        Button(
-            onClick = {
-                viewModel.importCategoriesFromText(importCategoriesText) { summary ->
-                    val base = context.getString(
-                        R.string.settings_category_import_result,
-                        summary.addedCount,
-                        summary.skippedDuplicateCount,
-                        summary.parseErrors.size,
-                    )
-                    status = if (summary.parseErrors.isEmpty()) {
-                        base
-                    } else {
-                        val lines = summary.parseErrors.take(8).joinToString("\n")
-                        val more =
-                            if (summary.parseErrors.size > 8) "\n…" else ""
-                        "$base\n\n$lines$more"
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(stringResource(R.string.settings_category_import_button))
         }
 
         Text(
