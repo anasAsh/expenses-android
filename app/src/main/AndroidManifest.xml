@@ -43,9 +43,6 @@
             android:name=".alarm.RolloverAlarmReceiver"
             android:exported="false" />
         <receiver
-            android:name=".alarm.DailySummaryAlarmReceiver"
-            android:exported="false" />
-        <receiver
             android:name=".alarm.BootCompletedReceiver"
             android:exported="true">
             <intent-filter>

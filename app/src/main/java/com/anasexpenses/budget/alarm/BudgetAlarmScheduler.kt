@@ -11,7 +11,7 @@ import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Schedules exact clock alarms for rollover (00:05) and daily summary (09:00) local time. */
+/** Schedules exact clock alarms for monthly rollover checks (00:05) local time. */
 @Singleton
 class BudgetAlarmScheduler @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -22,7 +22,6 @@ class BudgetAlarmScheduler @Inject constructor(
 
     fun scheduleAll() {
         scheduleAt(HOUR_ROLLOVER, MIN_ROLLOVER, RC_ROLLOVER, RolloverAlarmReceiver::class.java)
-        scheduleAt(HOUR_SUMMARY, MIN_SUMMARY, RC_SUMMARY, DailySummaryAlarmReceiver::class.java)
     }
 
     private fun scheduleAt(hour: Int, minute: Int, requestCode: Int, receiver: Class<*>) {
@@ -88,9 +87,6 @@ class BudgetAlarmScheduler @Inject constructor(
     companion object {
         private const val HOUR_ROLLOVER = 0
         private const val MIN_ROLLOVER = 5
-        private const val HOUR_SUMMARY = 9
-        private const val MIN_SUMMARY = 0
         private const val RC_ROLLOVER = 0xB001
-        private const val RC_SUMMARY = 0xB002
     }
 }
