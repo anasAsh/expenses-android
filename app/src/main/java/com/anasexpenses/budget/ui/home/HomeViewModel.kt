@@ -26,6 +26,8 @@ import kotlinx.coroutines.launch
 data class CategorySpendRow(
     val category: CategoryEntity,
     val spentMilliJod: Long,
+    /** Non-dismissed transactions in this category for the visible month. */
+    val transactionCount: Int,
 )
 
 /** Sum of monthly targets and spend for categories that count toward the month plan (!excluded, target > 0). */
@@ -57,12 +59,16 @@ class HomeViewModel @Inject constructor(
                 transactionRepository.observeTransactionsForMonth(month),
             ) { categories: List<CategoryEntity>, transactions: List<TransactionEntity> ->
                 categories.map { c ->
-                    val spent = transactions
-                        .filter { it.categoryId == c.id && it.status != TxStatus.DISMISSED }
-                        .sumOf { BudgetRollup.signedAmountMilliJod(it) }
-                    CategorySpendRow(c, spent)
+                    val txnsForCat = transactions.filter {
+                        it.categoryId == c.id && it.status != TxStatus.DISMISSED
+                    }
+                    CategorySpendRow(
+                        c,
+                        txnsForCat.sumOf { BudgetRollup.signedAmountMilliJod(it) },
+                        txnsForCat.size,
+                    )
                 }.sortedWith(
-                    compareByDescending<CategorySpendRow> { it.spentMilliJod }
+                    compareByDescending<CategorySpendRow> { it.transactionCount }
                         .thenBy { it.category.name.lowercase(Locale.getDefault()) },
                 )
             }
