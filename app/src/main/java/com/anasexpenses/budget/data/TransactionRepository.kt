@@ -25,6 +25,7 @@ import com.anasexpenses.budget.sms.parser.RegexBankSmsParser
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
