@@ -76,9 +76,15 @@ object RegexBankSmsParser {
         return try {
             val cardLast4 = g[1]
             val merchantRaw = g[2].trim()
-            val amountMilliJod = JodMoney.parseToMilliJod(g[3])
-            val date = LocalDate.parse(g[4], dateFormatter)
-            val timeParts = g[5].split(':')
+            val (currency, amountText, dateText, timeText) =
+                if (g.size >= 7) {
+                    listOf(g[3], g[4], g[5], g[6])
+                } else {
+                    listOf("JOD", g[3], g[4], g[5])
+                }
+            val amountMilliJod = JodMoney.parseToMilliJod(amountText)
+            val date = LocalDate.parse(dateText, dateFormatter)
+            val timeParts = timeText.split(':')
             require(timeParts.size == 2) { "time" }
             val hour = timeParts[0].toInt()
             val minute = timeParts[1].toInt()
@@ -88,7 +94,7 @@ object RegexBankSmsParser {
                     cardLast4 = cardLast4,
                     merchantRaw = merchantRaw,
                     amountMilliJod = amountMilliJod,
-                    currency = "JOD",
+                    currency = currency.uppercase(Locale.ROOT),
                     dateEpochDay = date.toEpochDay(),
                     timeSecondOfDay = time.toSecondOfDay(),
                 ),

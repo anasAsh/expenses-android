@@ -16,6 +16,7 @@ import com.anasexpenses.budget.domain.dedup.DedupHash
 import com.anasexpenses.budget.domain.dedup.DedupMatcher
 import com.anasexpenses.budget.domain.manual.ManualLineParser
 import com.anasexpenses.budget.domain.merchant.MerchantNormalizer
+import com.anasexpenses.budget.domain.money.CurrencyToJodConverter
 import com.anasexpenses.budget.data.preferences.UserPreferencesRepository
 import com.anasexpenses.budget.domain.time.BudgetCycle
 import com.anasexpenses.budget.domain.time.epochMillisFrom
@@ -96,9 +97,7 @@ class TransactionRepository @Inject constructor(
             ParseOutcome.NoMatch -> return
             is ParseOutcome.Failure -> return
             is ParseOutcome.Success -> {
-                val fields = outcome.fields
-                if (!fields.currency.equals("JOD", ignoreCase = true)) return
-                insertIfNotDuplicate(rawSms, template?.id, fields, outcome.confidence)
+                insertIfNotDuplicate(rawSms, template?.id, outcome.fields, outcome.confidence)
             }
         }
     }
@@ -113,15 +112,18 @@ class TransactionRepository @Inject constructor(
         val token = MerchantNormalizer.merchantToken(fields.merchantRaw)
         val rule = ruleDao.getByMerchantToken(token)
         val categoryId: Long? = rule?.categoryId
+        val parsedCurrency = fields.currency.uppercase(Locale.ROOT)
+        val amountMilliJod = CurrencyToJodConverter.toMilliJod(fields.amountMilliJod, parsedCurrency) ?: return
         val status =
             when {
+                parsedCurrency != "JOD" -> TxStatus.NEEDS_REVIEW
                 categoryId != null -> TxStatus.AUTO
                 confidence >= PrdConstants.CONFIDENCE_AUTO_MIN -> TxStatus.AUTO
                 else -> TxStatus.NEEDS_REVIEW
             }
         val instantMillis = epochMillisFrom(fields.dateEpochDay, fields.timeSecondOfDay, zone)
 
-        val candidates = transactionDao.findSameDayAndAmount(fields.amountMilliJod, fields.dateEpochDay)
+        val candidates = transactionDao.findSameDayAndAmount(amountMilliJod, fields.dateEpochDay)
         val duplicate = candidates.any { existing ->
             DedupMatcher.isDuplicate(
                 cardLast4 = fields.cardLast4,
@@ -135,7 +137,7 @@ class TransactionRepository @Inject constructor(
 
         val dedupHash = DedupHash.hash(
             cardLast4 = fields.cardLast4,
-            amountMilliJod = fields.amountMilliJod,
+            amountMilliJod = amountMilliJod,
             instantEpochMillis = instantMillis,
             merchantToken = token,
         )
@@ -143,8 +145,8 @@ class TransactionRepository @Inject constructor(
         val now = System.currentTimeMillis()
         transactionDao.insert(
             TransactionEntity(
-                amountMilliJod = fields.amountMilliJod,
-                currency = fields.currency,
+                amountMilliJod = amountMilliJod,
+                currency = "JOD",
                 merchant = fields.merchantRaw,
                 normalizedMerchant = normalizedMerchant,
                 normalizedMerchantToken = token,

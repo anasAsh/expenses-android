@@ -26,11 +26,11 @@ class BudgetSeed @Inject constructor(
         const val BANK_ID_ARAB = "arab_bank"
 
         /**
-         * Capture groups: 1 card last4, 2 merchant, 3 amount, 4 date (dd-MMM-yyyy), 5 time (HH:mm).
+         * Capture groups: 1 card last4, 2 merchant, 3 currency code, 4 amount, 5 date (dd-MMM-yyyy), 6 time (HH:mm).
          * Ignores trailing balance clause per PRD.
          * `(?i)` — bank copy sometimes changes casing; timezone suffix is optional / may vary (GMT±n).
          */
         const val ARAB_BANK_TRX_EN_REGEX =
-            """(?i)A Trx using Card XXXX(\d{4}) from (.+?) for JOD ([\d.]+) on (\d{2}-[A-Za-z]{3}-\d{4}) at (\d{2}:\d{2})(?:\s+GMT[+-]\d+)?"""
+            """(?i)A Trx using Card XXXX(\d{4}) from (.+?) for ([A-Za-z]{3}) ([\d.]+) on (\d{2}-[A-Za-z]{3}-\d{4}) at (\d{2}:\d{2})(?:\s+GMT[+-]\d+)?"""
     }
 }

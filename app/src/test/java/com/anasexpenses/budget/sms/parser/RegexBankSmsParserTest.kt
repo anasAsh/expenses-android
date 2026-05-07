@@ -57,6 +57,22 @@ class RegexBankSmsParserTest {
         assertEquals("2222", f.cardLast4)
         assertEquals("TEST MERCHANT", f.merchantRaw)
         assertEquals(1_000L, f.amountMilliJod)
+        assertEquals("JOD", f.currency)
+    }
+
+    @Test
+    fun arabBankEnglishSms_nonJodCurrency_parsesCurrencyAndAmount() {
+        val raw =
+            "A Trx using Card XXXX9876 from APPLE.COM for USD 10.500 on 02-May-2026 at 20:30 GMT+3."
+
+        val outcome = RegexBankSmsParser.parse(BudgetSeed.ARAB_BANK_TRX_EN_REGEX, raw)
+
+        assertTrue(outcome is ParseOutcome.Success)
+        val f = (outcome as ParseOutcome.Success).fields
+        assertEquals("9876", f.cardLast4)
+        assertEquals("APPLE.COM", f.merchantRaw)
+        assertEquals(10_500L, f.amountMilliJod)
+        assertEquals("USD", f.currency)
     }
 
     @Test
