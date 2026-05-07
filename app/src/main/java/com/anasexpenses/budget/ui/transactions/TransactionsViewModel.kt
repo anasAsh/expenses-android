@@ -9,7 +9,6 @@ import com.anasexpenses.budget.data.local.entity.CategoryEntity
 import com.anasexpenses.budget.data.local.entity.TransactionEntity
 import com.anasexpenses.budget.data.local.entity.TxStatus
 import com.anasexpenses.budget.data.preferences.UserPreferencesRepository
-import com.anasexpenses.budget.domain.budget.BudgetRollup
 import com.anasexpenses.budget.domain.money.JodMoney
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.YearMonth
@@ -75,21 +74,19 @@ class TransactionsViewModel @Inject constructor(
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Sorted by signed spend this month (highest first), matching Home rollup semantics. */
+    /** Sorted by number of categorized transactions this month (highest first). */
     val categories: StateFlow<List<CategoryEntity>> =
         combine(monthTransactionsAll, categoriesRaw) { txns, cats ->
-            val spendById = txns
+            val transactionCountById = txns
                 .filter {
                     it.categoryId != null &&
                         it.categoryId!! > 0L &&
                         it.status != TxStatus.DISMISSED
                 }
                 .groupBy { it.categoryId!! }
-                .mapValues { (_, list) ->
-                    list.sumOf { BudgetRollup.signedAmountMilliJod(it) }
-                }
+                .mapValues { (_, list) -> list.size }
             cats.sortedWith(
-                compareByDescending<CategoryEntity> { spendById[it.id] ?: 0L }
+                compareByDescending<CategoryEntity> { transactionCountById[it.id] ?: 0 }
                     .thenBy { it.name.lowercase(Locale.getDefault()) },
             )
         }

@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.anasexpenses.budget.data.CategoryRepository
 import com.anasexpenses.budget.data.TransactionRepository
 import com.anasexpenses.budget.data.preferences.UserPreferencesRepository
-import com.anasexpenses.budget.domain.budget.BudgetRollup
 import com.anasexpenses.budget.domain.time.BudgetCycle
 import com.anasexpenses.budget.data.local.entity.CategoryEntity
 import com.anasexpenses.budget.data.local.entity.TransactionEntity
@@ -56,18 +55,16 @@ class TransactionEditViewModel @Inject constructor(
                     transactionRepository.observeTransactionsForMonth(ym),
                     categoryRepository.observeMonth(ym.toString()),
                 ) { txns, cats ->
-                    val spendById = txns
+                    val transactionCountById = txns
                         .filter {
                             it.categoryId != null &&
                                 it.categoryId!! > 0L &&
                                 it.status != TxStatus.DISMISSED
                         }
                         .groupBy { it.categoryId!! }
-                        .mapValues { (_, list) ->
-                            list.sumOf { BudgetRollup.signedAmountMilliJod(it) }
-                        }
+                        .mapValues { (_, list) -> list.size }
                     cats.sortedWith(
-                        compareByDescending<CategoryEntity> { spendById[it.id] ?: 0L }
+                        compareByDescending<CategoryEntity> { transactionCountById[it.id] ?: 0 }
                             .thenBy { it.name.lowercase(Locale.getDefault()) },
                     )
                 }
