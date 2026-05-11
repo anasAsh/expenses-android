@@ -7,10 +7,11 @@ Ordered roughly by dependency. Status reflects the codebase as of the latest imp
 ## 0. Product decisions (unblock implementation)
 
 - **v1 bank:** Arab Bank — golden SMS in [PRD §14](Budget_Tracker_PRD.md)
-- **SMS templates:** English only at launch
-- **Cloud backup:** v2 (v1 pure local)
+- **SMS templates:** English card pattern + Arabic “Click” paths shipped; DB `BankTemplateEntity` can override/extend
+- **Cloud backup:** v2 (v1 on-device only); **manual DB export** + **optional daily SQLite copy** to a user-picked folder (`DailyBudgetWorker` + SAF tree URI)
 - **Income:** out of scope v1
 - **Threshold constants:** frozen per [PRD §12](Budget_Tracker_PRD.md)
+- **First month categories:** shipped **starter categories** + **merchant rule seeds** (`DefaultCategorySeeds`, `MerchantRuleSeeds`) when the labeled month is empty at onboarding
 
 ---
 
@@ -55,10 +56,10 @@ Ordered roughly by dependency. Status reflects the codebase as of the latest imp
 
 ## 5. UI — Onboarding & settings
 
-- Onboarding: SMS disclosure + permission launcher + skip flag
-- First category capture (name, target JOD milli, excluded toggle) + more categories from Home
+- Onboarding: SMS disclosure + permission launcher + skip flag; finishing onboarding ensures **default categories + merchant rules** for the current labeled month
+- **First-launch tour:** tab walkthrough after shell (`ui/tour/`), persisted via `firstLaunchTourCompleted`
 - v1 Arab Bank only (no bank picker)
-- Settings: export, inbox backfill, paste-SMS debug, `POST_NOTIFICATIONS` prompt, metrics, privacy link placeholder
+- Settings: **manual DB export**, **optional daily backup folder**, inbox backfill, paste-SMS debug, `POST_NOTIFICATIONS` prompt, metrics, privacy URL, bulk category import, budget cycle start day
 
 ---
 
@@ -72,9 +73,9 @@ Ordered roughly by dependency. Status reflects the codebase as of the latest imp
 ## 7. UI — Transactions
 
 - Transaction list (selected budget month)
-- Tap → assign category + rule toggles + back-apply
+- Tap row → assign category + optional **remember rule** + optional **back-apply** (from list flow)
 - Manual entry FAB (`coffee 3` style)
-- Full edit: amount, date, refund, dismiss, category
+- **Transaction edit** screen: merchant, amount, date, refund, dismissed, **category** (radio list), save/delete
 
 ---
 
@@ -89,14 +90,14 @@ Ordered roughly by dependency. Status reflects the codebase as of the latest imp
 
 ## 9. WorkManager & alarms
 
-- `[DailyBudgetWorker](app/src/main/java/com/anasexpenses/budget/work/DailyBudgetWorker.kt)` — 24h periodic `refreshAlerts`
+- `[DailyBudgetWorker](app/src/main/java/com/anasexpenses/budget/work/DailyBudgetWorker.kt)` — 24h periodic `refreshAlerts` + optional **daily SQLite backup** to SAF folder (`anas-budget-daily-backup.db`); retries if backup fails
 - **AlarmManager** — rollover **00:05** + summary **09:00** local, `scheduleAll` on boot + after fire (`[BudgetAlarmScheduler](app/src/main/java/com/anasexpenses/budget/alarm/BudgetAlarmScheduler.kt)`)
 
 ---
 
 ## 10. Backup & metrics
 
-- v1 local only; **SAF export** of Room DB in Settings
+- v1 local only; **SAF export** of Room DB in Settings + **optional scheduled copy** to user-chosen folder (`DatabaseExportHelper`, `UserPreferencesRepository.dailyBackupTreeUri`)
 - v2 Google Drive
 - On-device counters: SMS vs manual row counts (`[AppMetricsRepository](app/src/main/java/com/anasexpenses/budget/data/metrics/AppMetricsRepository.kt)`, Settings)
 
@@ -104,10 +105,10 @@ Ordered roughly by dependency. Status reflects the codebase as of the latest imp
 
 ## 11. QA & polish
 
-- Parser unit tests (incl. second English golden) + predictive unit test
-- CI: [.github/workflows/android.yml](.github/workflows/android.yml)
-- Paste-SMS debug in Settings; expanded English SMS test corpus
-- Partial `values-ar` (UI); bank SMS still English v1 per product decision; full Arabic SMS matching is future
+- Parser unit tests + `CurrencyToJodConverterTest` + seed tests (`DefaultCategorySeedsTest`, `MerchantRuleSeedsTest`) + predictive / `BudgetCycle` tests
+- CI: [.github/workflows/android.yml](.github/workflows/android.yml) (`assembleDebug` + `testDebugUnitTest` on push/PR); optional [.github/workflows/apk-test-build.yml](.github/workflows/apk-test-build.yml) for **debug APK artifact** (manual / `v*` tag)
+- Paste-SMS debug in Settings
+- Partial `values-ar` (UI); Arabic **Click** SMS paths covered in parser; additional Arabic **card** templates incremental
 
 ---
 

@@ -33,20 +33,14 @@ Optional: **SQLCipher** (or encrypted file + Keystore-wrapped key) if threat mod
 
 ---
 
-## 3. Module boundaries (suggested)
+## 3. Module boundaries (shipped)
+
+**Single `:app` module** — Kotlin, Compose UI, Hilt, Room, DataStore, WorkManager, and SMS receiver live under `app/src/main/java/com/anasexpenses/budget/` with MVVM layers (`ui/`, `domain/`, `data/`, plus `sms/`, `alerts/`, `work/`). The multi-module layout below remains a **future split** if build times or ownership demand it.
 
 ```
-:app                 # Application, navigation, theme, DI modules
-:feature-onboarding  # Optional: permissions + first-run
-:feature-budget      # Categories, month rollover UI
-:feature-transactions# List, detail, edit, needs-review queue
-:feature-alerts      # Local notification scheduling hooks (thin)
-:core-data           # Room entities, DAOs, repositories
-:core-sms            # Receiver, parser, templates, normalizer, deduper
-:core-domain         # Pure Kotlin: rollup math, alert eligibility, predictive formula
+:app (current)        # All of the above in one Gradle module
+:feature-* / :core-* # Optional future extraction only
 ```
-
-Monolith `:app` only is acceptable for MVP; split when build times or ownership demand it.
 
 ---
 
@@ -54,7 +48,7 @@ Monolith `:app` only is acceptable for MVP; split when build times or ownership 
 
 ```mermaid
 flowchart LR
-  SMS[Incoming SMS] --> Receiver[SmsBroadcastReceiver]
+  SMS[Incoming SMS] --> Receiver[SmsTransactionReceiver]
   Receiver --> Parser[SmsParser + BankTemplate]
   Parser --> Normalizer[MerchantNormalizer]
   Normalizer --> Deduper[Deduper +/-5min]
@@ -67,12 +61,12 @@ flowchart LR
 
 
 
-1. `**SmsBroadcastReceiver**` — Listens for `SMS_RECEIVED`, filters sender/heuristic to “likely bank” before heavy work (reduce battery).
-2. `**SmsParser**` — Loads active `BankTemplate`(s) for user-selected bank + language; runs regex; emits structured `ParsedSms` + `confidence`.
+1. `**SmsTransactionReceiver**` — Listens for `SMS_RECEIVED`; assembles multipart bodies; **does not** pre-filter the body (wording varies; non-matches are cheap). `**ArabBankSmsFilter**` is reserved for **inbox backfill** narrowing, not the live receiver path.
+2. `**RegexBankSmsParser**` (+ Room `BankTemplateEntity` + shipped fallbacks) — Runs regex / Arabic Click paths; emits parsed fields + `confidence`.
 3. `**MerchantNormalizer**` — Produces `normalized_merchant` and `normalized_merchant_token` for dedup and rules.
 4. `**Deduper**` — Applies PRD rules (amount, card, merchant similarity, ±5 min); handles pending → settled merge via `dedup_hash`.
-5. `**Categorizer**` — Looks up `Rule` by token; else uncategorized; sets `status` from confidence.
-6. `**TransactionRepository**` — Single write path to Room (transactions + optional alert side effects enqueue).
+5. `**Categorizer**` — Looks up `Rule` by token; else uncategorized; sets `status` from confidence / currency policy.
+6. `**TransactionRepository**` — Single write path to Room; applies **`CurrencyToJodConverter`** for supported non-JOD SMS currencies (static offline rates; unknown codes → no insert). Stored money is milli-JOD; non-JOD SMS rows are marked **`needs_review`**. After insert, **`BudgetAlertCoordinator.refreshAlerts`** for the transaction’s labeled budget month.
 
 All steps run off the main thread (coroutine `Dispatchers.Default` or injected dispatcher).
 
@@ -89,13 +83,12 @@ All steps run off the main thread (coroutine `Dispatchers.Default` or injected d
 ## 6. Background work (WorkManager)
 
 
-| Worker                  | Schedule                                              | Purpose                                                                                                        |
+| Worker / alarm          | Schedule / trigger                                   | Purpose (shipped)                                                                                              |
 | ----------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `MonthRolloverWorker`   | 1st of month **00:05** local                          | Create new month category draft from previous month; reset in-app “month context”; no deletion of transactions |
-| `MonthlySummaryWorker`  | 1st **09:00** local                                   | Compute prior month rollups; fire summary notification                                                         |
-| `PredictiveAlertWorker` | Daily ~**08:05** (after quiet hours)                  | Evaluate predictive formula; write `AlertEvent`; notify                                                        |
-| `ThresholdAlertWorker`  | On transaction insert/update **or** periodic coalesce | Re-evaluate 70/85/100%; respect quiet hours and dedupe via `AlertEvent`                                        |
+| `DailyBudgetWorker`     | WorkManager **~24h**                                  | `refreshAlerts` for the current labeled month; optional **SQLite copy** to a user-picked SAF tree URI (`anas-budget-daily-backup.db`) if daily backup is enabled               |
+| AlarmManager hooks      | Rollover **00:05**, daily summary **~09:00** (local)  | Month copy + summary notification paths (see `BudgetAlarmScheduler` / receivers in repo)                     |
 
+Threshold and predictive notifications are evaluated inside **`BudgetAlertCoordinator`** (on ingest, worker, and alarm-driven `refreshAlerts`), not as separate named WorkManager workers.
 
 Exact split (transaction-triggered vs periodic) is implementation detail; PRD requires idempotent `AlertEvent` rows.
 
@@ -109,12 +102,12 @@ Exact split (transaction-triggered vs periodic) is implementation detail; PRD re
 
 ---
 
-## 8. Backup (optional v1)
+## 8. Backup (v1 shipped)
 
-- **Google Drive AppFolder:** Export encrypted JSON snapshot (transactions, categories, rules — **exclude** or hash `raw_sms` per privacy choice) on user action or periodic schedule.
-- Restore: merge or replace policy must be documented in app copy (replace is simpler for v1).
+- **Manual export:** Settings — user picks a document; app checkpoints WAL and copies the Room SQLite file (SAF), same as one-off backup file naming in UI strings.
+- **Optional daily copy:** User grants a **folder** (tree URI); `DailyBudgetWorker` writes `anas-budget-daily-backup.db` into that folder on each run when configured. No cloud upload in v1.
 
-**v1 (per PRD §12):** No Google Drive AppFolder — **pure local** until v2. If export is needed earlier, ship **export to file** (SAF) first; same schema. Drive backup targets **v2**.
+**v2:** Google Drive AppFolder / encrypted JSON remains out of scope until explicitly added.
 
 ---
 
@@ -128,10 +121,11 @@ Exact split (transaction-triggered vs periodic) is implementation detail; PRD re
 
 ## 10. Testing strategy
 
-- **Golden SMS corpus:** `src/test/resources/sms/*.txt` — expected `ParsedSms` + confidence; regression on every template change.
-- **Unit tests:** `core-domain` for rollup, predictive projection, small-category filter, top-N selection.
-- **Integration:** Room + repository in-memory or Android instrumented tests for dedup and alert idempotency.
-- **Optional debug UI:** “Rule simulator” — paste SMS, see parse + category without persisting.
+- **Golden SMS corpus:** `src/test/.../RegexBankSmsParserTest` (and resources) — regression on template / parser changes.
+- **Unit tests:** `app/src/test/...` — domain (e.g. `PredictiveEvaluatorTest`, `BudgetCycleTest`, `MerchantNormalizerTest`), money (`CurrencyToJodConverterTest`), seeds (`DefaultCategorySeedsTest`, `MerchantRuleSeedsTest`), bulk import, parser tests.
+- **CI:** `.github/workflows/android.yml` assembles debug and runs `testDebugUnitTest` on Ubuntu + JDK 17.
+- **Integration:** Room + repository instrumented tests where present under `androidTest/`.
+- **Debug UI:** Settings “paste SMS” ingest path.
 
 ---
 
@@ -152,6 +146,7 @@ Drive versions from Android BOM where applicable.
 ## 12. Out of scope (this document)
 
 - Backend API design (v1 local-only).
-- CI/CD pipeline specifics.
-- Exact regex for each bank (lives with `BankTemplate` seeds and tests).
+- Exact regex for each bank (lives with `BankTemplate` seeds, `BudgetSeed` fallbacks, and tests).
+
+**CI:** `.github/workflows/android.yml` builds and runs unit tests on `main`/`master` and PRs (no APK artifact). Optional **`.github/workflows/apk-test-build.yml`** uploads a debug APK artifact on manual dispatch or `v*` tags.
 

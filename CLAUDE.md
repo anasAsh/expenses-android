@@ -23,20 +23,28 @@ MVVM + layered architecture with Hilt DI. Four layers:
 
 **Data** (`data/`) — Room DB (`BudgetDatabase`) with 5 entities: `TransactionEntity`, `CategoryEntity`, `RuleEntity`, `BankTemplateEntity`, `AlertEventEntity`. DataStore for user preferences. Repositories: `TransactionRepository`, `CategoryRepository`, `UserPreferencesRepository`.
 
-**Integration** (`sms/`, `alerts/`, `work/`) — SMS broadcast receiver → parser pipeline → repository. `DailyBudgetWorker` (WorkManager, every 24h) calls `BudgetAlertCoordinator`.
+**Integration** (`sms/`, `alerts/`, `work/`) — SMS broadcast receiver → `TransactionRepository.ingestSmsBodies` → parser pipeline → Room. `DailyBudgetWorker` (WorkManager, every 24h) calls `BudgetAlertCoordinator.refreshAlerts` and, if the user enabled it in Settings, copies the SQLite file to a SAF-chosen folder (`DatabaseExportHelper.checkpointAndCopyToTreeUri`).
 
 ## SMS Ingestion Pipeline
 
 ```
-SmsTransactionReceiver (BroadcastReceiver)
-  → ArabBankSmsFilter (heuristic: sender + body check)
-  → RegexBankSmsParser (named groups: card, merchant, amount, date, time)
+SmsTransactionReceiver (BroadcastReceiver; no body pre-filter on this path)
+  → TransactionRepository.ingestSmsBodies (normalize body)
+  → RegexBankSmsParser (+ DB BankTemplateEntity, BudgetSeed fallbacks; Arabic Click + English card patterns)
+  → CurrencyToJodConverter (static FX to milli-JOD for supported codes; unknown currency → skip insert)
   → MerchantNormalizer → DedupMatcher (±5 min, amount, card, merchant)
-  → TransactionRepository.insert()
+  → TransactionDao.insert (currency stored as JOD; non-JOD SMS → needs_review)
   → BudgetAlertCoordinator.refreshAlerts()
 ```
 
-Bank SMS patterns are stored in `BankTemplateEntity` (user-configurable regexes). The parser supports both Arabic and English SMS bodies.
+`ArabBankSmsFilter` is used for **inbox backfill** heuristics only, not for filtering live `SMS_RECEIVED`.
+
+Bank SMS patterns are stored in `BankTemplateEntity` (user-configurable regexes). Seeded templates and fallbacks cover English card SMS and Arabic “Click” variants.
+
+## Onboarding & first run
+
+- Onboarding finishes with **default categories** (`DefaultCategorySeeds`) and **merchant rule seeds** (`MerchantRuleSeeds`) for the labeled budget month when the month was empty (`CategoryRepository.ensureDefaultCategoriesForMonth` / `ensureMerchantRuleSeedsForMonth`).
+- After the main shell loads, a **first-launch tour** (`ui/tour/FirstLaunchTourDialog.kt`) can run once (`UserPreferencesRepository.firstLaunchTourCompleted`).
 
 ## Alert System
 
@@ -44,7 +52,7 @@ Bank SMS patterns are stored in `BankTemplateEntity` (user-configurable regexes)
 
 ## Key Conventions
 
-- Currency: JOD (Jordanian Dinar) via `JodMoney` wrapper — never use raw `Double` for money.
+- Currency: JOD (Jordanian Dinar) via `JodMoney` / milli-JOD fields — never use raw `Double` for money. SMS amounts in **USD, EUR, GBP, SAR, AED, QAR, KWD, BHD, OMR** (and JOD) are converted offline via **`CurrencyToJodConverter`**; rows are still stored with `currency = "JOD"` but `status` is **`needs_review`** when the parsed SMS currency was not JOD.
 - Month handling: `YearMonth` throughout. `UserPreferencesRepository.selectedMonth` persists the current view.
 - Dedup: `DedupHash` (SHA-256 of amount+merchant+card+date) for pending/settled linkage; `DedupMatcher` for fuzzy ±5 min window checks.
 - Category rules: `RuleEntity` maps `normalized_merchant_token → categoryId`. `TransactionRepository.assignCategoryAndOptionalRule()` can back-apply to all uncategorized transactions in the month.
@@ -61,7 +69,7 @@ Routes defined in `ui/navigation/Route.kt` as a sealed class. `TransactionEdit` 
 
 ## Testing
 
-Unit tests live in `src/test/` and cover domain logic only (`RegexBankSmsParserTest`, `PredictiveEvaluatorTest`, `MerchantNormalizerTest`). Instrumented tests are in `src/androidTest/`. No lint/ktlint/detekt configured.
+Unit tests live in `src/test/` (domain + parser): e.g. `RegexBankSmsParserTest`, `PredictiveEvaluatorTest`, `MerchantNormalizerTest`, `CurrencyToJodConverterTest`, `DefaultCategorySeedsTest`, `MerchantRuleSeedsTest`, `BudgetCycleTest`, `CategoryBulkImportTest`. Instrumented tests are in `src/androidTest/`. GitHub Actions: `android.yml` runs assemble + unit tests on push/PR; `apk-test-build.yml` uploads a debug APK on workflow dispatch or `v*` tags. No lint/ktlint/detekt configured.
 
 ## Docs
 

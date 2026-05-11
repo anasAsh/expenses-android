@@ -59,7 +59,7 @@ An individual managing personal and household finances who:
 1. **Permission rationale** — Explain why SMS access is needed (read bank SMS only; no upload in v1 unless user opts into backup — see §6).
 2. **Grant SMS permission** — Required for primary ingestion; user can skip and rely on manual entry only (degraded experience).
 3. **Optional historical backfill** — Opt-in: process SMS from device inbox for the **last 60 days** using the same parser and dedup rules as live SMS.
-4. **First month setup** — User defines categories + monthly targets for the **current labeled budget month** (derived from today’s date and [budget cycle](#appendix--shipped-behavior-code-aligned) start day when configured; default aligns with calendar month when start day = 1).
+4. **First month setup** — **Shipped:** app seeds **starter categories + merchant rules** when the labeled month is empty; user adjusts targets/names on Home. Targets still refer to the **current labeled budget month** (from today + [budget cycle](#appendix--shipped-behavior-code-aligned) start day; calendar month when start day = 1).
 
 #### Success criteria
 
@@ -86,7 +86,7 @@ User reaches a state where at least one category exists and the app can ingest S
 
 #### Requirements
 
-- No predefined categories
+- No **mandatory** vendor-defined category taxonomy — users edit or delete starter rows freely (**shipped:** optional **starter categories + merchant rules** seed the first empty month at onboarding; see Appendix).
 - No category hierarchy (flat structure only)
 - Categories are:
   - Lightweight
@@ -127,7 +127,7 @@ Automatically capture most transactions with minimal user effort.
 
 ##### Currency policy (v1)
 
-- **JOD only** for budget math and alerts. SMS in other currencies: either **reject** (no transaction) or store with `needs_review` — product default: **reject** for v1 to avoid silent FX errors; `currency` field retained for forward compatibility.
+- **Budget math and alerts** use **milli-JOD** only. **Shipped SMS behavior:** parsed amounts in **JOD, USD, EUR, GBP, SAR, AED, QAR, KWD, BHD, OMR** are converted to milli-JOD via **static offline rates** (`CurrencyToJodConverter`); the row is stored with `currency` shown as JOD in the data layer for v1. If the SMS currency was **not JOD**, the transaction is stored with **`needs_review`** so the user can confirm the implied FX. **Unknown** currency codes → **no insert** (same as a failed parse from a budgeting perspective).
 
 ##### Example SMS
 
@@ -349,7 +349,7 @@ Under budget: Subscriptions (-15 JOD)”
 | --------------------------- | ---------------------------------------------- |
 | `id`                        | UUID or monotonic                              |
 | `amount`                    | Decimal (3 dp JOD)                             |
-| `currency`                  | v1: always `JOD` when accepted                 |
+| `currency`                  | Shipped: stored as **`JOD`** for accepted rows; SMS may have been parsed in another supported code (see §4.2.1) |
 | `merchant`                  | Raw display string                             |
 | `normalized_merchant`       | Normalized for dedup / display                 |
 | `normalized_merchant_token` | Canonical key for `Rule` lookup                |
@@ -450,7 +450,7 @@ Enforces **one notification per (category, month, threshold)** for threshold typ
 - **Google Play:** SMS and Call Log permissions are **restricted**. The app must comply with [Use of SMS or Call Log permission groups](https://support.google.com/googleplay/android-developer/answer/9047303): declare narrow use (financial transaction parsing), in-app disclosure, and **no misuse** as default SMS handler unless product explicitly becomes the default SMS app (not required for `SMS_RECEIVED` listener pattern — follow current Play policy for your integration choice).
 - **Privacy / parsing:** **Local-only** parsing and storage for v1; no server upload unless user opts into **anonymous metrics** (§9). **Cloud backup** (e.g. Google Drive AppFolder) is **out of scope until v2** (§12).
 - **Storage:** SQLite via **Room**; optional **SQLCipher** or file encryption with Keystore-wrapped keys for sensitive fields.
-- **Preferences:** **DataStore** for user flags (onboarding, selected budget month, budget cycle start day, SMS skip, …); separate metrics store (Appendix).
+- **Preferences:** **DataStore** for user flags (onboarding, selected budget month, budget cycle start day, SMS skip, optional daily backup folder URI, first-launch tour, …); separate metrics store (Appendix).
 - **Notifications:** Runtime `**POST_NOTIFICATIONS`** where required by API level; guarded notification post path in shipped app.
 - **Background:** **WorkManager** (`DailyBudgetWorker`); **AlarmManager** for scheduled rollover/summary (exact alarms per device policy).
 
@@ -479,7 +479,7 @@ Enforces **one notification per (category, month, threshold)** for threshold typ
 - Threshold + predictive budget alerts (with `AlertEvent` deduplication; **top-5** targets; **small-category gate**; **quiet-hours skip**; safe `**notify`** path)
 - **DailyBudgetWorker** + alarm receivers; **daily summary** notification (~09:00) + `**refreshAlerts`** hook
 - **Settings:** DB **export**, SMS **backfill** (~60 days), paste-SMS debug, privacy link, **local metrics**, **bulk category import** (`Name: amount`)
-- Onboarding + optional 60-day backfill (Settings action)
+- Onboarding + optional 60-day backfill (Settings action); **first-launch tab tour** after shell; **optional daily local DB backup** to user-picked folder
 
 ---
 
@@ -575,10 +575,10 @@ The following constants are **locked for v1** implementation and QA:
 | Pattern     | **MVVM**, **Hilt** dependency injection                                                                                                                                                           |
 | UI          | **Jetpack Compose**                                                                                                                                                                               |
 | Local DB    | **Room** (`BudgetDatabase`): `TransactionEntity`, `CategoryEntity`, `RuleEntity`, `BankTemplateEntity`, `AlertEventEntity`                                                                        |
-| Preferences | **DataStore** (`UserPreferencesRepository`): selected budget month (`YearMonth` string), budget cycle start day (1–28), onboarding flags, …                                                       |
+| Preferences | **DataStore** (`UserPreferencesRepository`): selected budget month (`YearMonth` string), budget cycle start day (1–28), onboarding flags, optional **daily backup** SAF tree URI, **first-launch tour** completed flag, … |
 | Metrics     | Separate **DataStore** (`AppMetricsRepository`) for on-device counters (e.g. SMS vs manual rows) surfaced in Settings                                                                             |
 | Background  | **WorkManager** (`DailyBudgetWorker`); **AlarmManager** receivers for rollover / daily summary scheduling                                                                                         |
-| Navigation  | Bottom tabs **Home**, **Transactions**, **Settings**; routes include `transactionEdit/{id}`, `**transactions/category/{categoryId}`**; `**RootViewModel`** gates **onboarding** before main shell |
+| Navigation  | Bottom tabs **Home**, **Transactions**, **Settings**; routes include `transactionEdit/{id}`, `**transactions/category/{categoryId}`**; `**RootViewModel`** gates **onboarding** before main shell; **first-launch tour** overlay until completed |
 
 
 ### Home
@@ -599,8 +599,8 @@ The following constants are **locked for v1** implementation and QA:
 
 - List + filters honor **budget cycle** epoch-day range for the selected labeled month.
 - **Manual** entry FAB + shorthand parser.
-- **Assign category** dialog: optional **remember rule**, optional **back-apply** (same token, uncategorized, within cycle window).
-- **Transaction edit** screen for full edits.
+- **Assign category** (from list): optional **remember rule**, optional **back-apply** (same token, uncategorized, within cycle window).
+- **Transaction edit** screen: merchant, amount (JOD), date, refund, dismissed, **category** (per-month list), save/delete.
 
 ### Merchant rules
 
@@ -611,6 +611,7 @@ The following constants are **locked for v1** implementation and QA:
 ### Settings
 
 - **Export** SQLite backup via Storage Access Framework (create document).
+- **Optional daily backup:** user picks a **folder** (SAF tree URI); `DailyBudgetWorker` writes `anas-budget-daily-backup.db` on each run when enabled.
 - **Import recent SMS** (~60 days) from inbox through same ingest pipeline.
 - **Paste SMS** debug ingest.
 - **Privacy policy** opens browser URL from strings.
@@ -635,9 +636,14 @@ The following constants are **locked for v1** implementation and QA:
 
 ### SMS pipeline (Arab Bank)
 
-- `**SmsTransactionReceiver`** → `**ArabBankSmsFilter**` → `**RegexBankSmsParser**` + `**BankTemplateEntity**` (seed `**arab_bank**` English template in `**BudgetSeed**`).
-- Non-JOD SMS rejected on ingest path (repository).
+- `**SmsTransactionReceiver`** → `**TransactionRepository.ingestSmsBodies**` (no body pre-filter on receiver) → `**RegexBankSmsParser**` + `**BankTemplateEntity**` + shipped fallbacks (`**BudgetSeed**`, Arabic Click paths). `**ArabBankSmsFilter**` is for **inbox backfill** heuristics only.
+- Supported non-JOD currencies: converted to milli-JOD with static rates; **`needs_review`** when parsed currency ≠ JOD; unknown currency → skip insert.
 - **Dedup:** `**DedupMatcher`** / `**DedupHash`** per `**PrdConstants**` (confidence threshold, ±5 min window, similarity).
+
+### Onboarding & first run
+
+- Completing onboarding runs `**ensureDefaultCategoriesForMonth**` + `**ensureMerchantRuleSeedsForMonth**` when the labeled month has no categories yet (`**DefaultCategorySeeds**`, `**MerchantRuleSeeds**`).
+- **First-launch tour:** multi-step overlay across Home / Transactions / Settings (`**firstLaunchTourCompleted**` in DataStore).
 
 ### Internationalization
 

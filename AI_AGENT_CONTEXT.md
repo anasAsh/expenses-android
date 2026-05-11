@@ -1,6 +1,6 @@
 # AI agent context — Expenses (Android)
 
-Purpose-built handoff for another coding agent. Canonical project rules also live in [`CLAUDE.md`](CLAUDE.md); deep design lives in [`ARCHITECTURE.md`](ARCHITECTURE.md) and [`Budget_Tracker_PRD.md`](Budget_Tracker_PRD.md).
+Purpose-built handoff for another coding agent. Canonical project rules also live in [`CLAUDE.md`](CLAUDE.md); deep design lives in [`ARCHITECTURE.md`](ARCHITECTURE.md) and [`Budget_Tracker_PRD.md`](Budget_Tracker_PRD.md). Prefer reconciling this file with `git diff` when behavior drifts.
 
 ## Product
 
@@ -14,18 +14,18 @@ Purpose-built handoff for another coding agent. Canonical project rules also liv
 ./gradlew :app:testDebugUnitTest --tests "*.RegexBankSmsParserTest"
 ```
 
-See `CLAUDE.md` for release build and full test targets.
+See `CLAUDE.md` for release build and full test targets. CI: `android.yml` (push/PR) vs `apk-test-build.yml` (manual / `v*` tag → `app-debug-apk` artifact).
 
 ## Architecture (short)
 
 | Layer | Location | Notes |
 |--------|-----------|--------|
 | UI | `app/src/main/java/.../ui/` | Compose, Hilt ViewModels, `StateFlow`. Shell: Home, Transactions, Settings; onboarding gate in `RootViewModel`. |
-| Domain | `.../domain/` | Pure Kotlin: `JodMoney`, `BudgetRollup`, `DedupMatcher`/`DedupHash`, `MerchantNormalizer`, `BudgetCycle`, parsers’ helpers. |
-| Data | `.../data/` | Room (`BudgetDatabase`), `TransactionRepository`, `CategoryRepository`, `UserPreferencesRepository` (DataStore), seeds (`BudgetSeed`). |
-| Integration | `.../sms/`, `.../alerts/`, `.../work/` | SMS receiver → ingest; alerts via `BudgetAlertCoordinator`; periodic work. |
+| Domain | `.../domain/` | Pure Kotlin: `JodMoney`, `CurrencyToJodConverter`, `BudgetRollup`, `DedupMatcher`/`DedupHash`, `MerchantNormalizer`, `BudgetCycle`, `DefaultCategorySeeds`, `MerchantRuleSeeds`, parsers’ helpers. |
+| Data | `.../data/` | Room (`BudgetDatabase`), `TransactionRepository`, `CategoryRepository`, `UserPreferencesRepository` (DataStore incl. `dailyBackupTreeUri`, `firstLaunchTourCompleted`), `DatabaseExportHelper`, seeds (`BudgetSeed`, onboarding `DefaultCategorySeeds` / `MerchantRuleSeeds` via `CategoryRepository`). |
+| Integration | `.../sms/`, `.../alerts/`, `.../work/` | SMS receiver → ingest; alerts via `BudgetAlertCoordinator`; `DailyBudgetWorker` (`refreshAlerts` + optional daily SAF DB copy). |
 
-**Money:** amounts in **`amountMilliJod`** — thousandths of JOD (`JodMoney`); do not use raw `Double` for money.
+**Money:** amounts in **`amountMilliJod`** — thousandths of JOD (`JodMoney`); do not use raw `Double` for money. **`CurrencyToJodConverter`** maps supported SMS currency codes (USD, EUR, …) to milli-JOD with static rates; unknown code → ingest skips insert. Parsed currency **≠ JOD** still inserts (when supported) with **`needs_review`** so FX is explicit to the user.
 
 **Budget month:** `UserPreferencesRepository.selectedMonth` (`YearMonth`) + `budgetCycleStartDay` → epoch-day range via `BudgetCycle.epochDayRangeInclusive`. Transaction lists filter by **date falling in that range**, not calendar month alone.
 
@@ -64,10 +64,19 @@ See `CLAUDE.md` for release build and full test targets.
 - **`dedup_hash`** updates when editing merchant/amount/date in **`TransactionEditViewModel`**.
 - A parsed SMS may **not appear** under the selected Home/Transactions month if **SMS date epoch** falls **outside** the current **budget cycle window** — change month picker or interpret as data, not parsing failure.
 
+## Onboarding, tour, backups
+
+- **`OnboardingViewModel`** — `ensureDefaultCategoriesForMonth` + `ensureMerchantRuleSeedsForMonth` for the labeled month; `finishOnboarding` marks prefs complete.
+- **`FirstLaunchTourOverlay`** (`ui/tour/`) — Shown from `MainActivity` when `firstLaunchTourCompleted` is false; walks tabs then calls `FirstLaunchTourViewModel.markTourCompleted()`.
+- **Settings** — Manual DB export (`exportToUri`) and optional **daily backup folder** (`setDailyBackupFolder` / `disableDailyBackup`); worker writes `anas-budget-daily-backup.db`.
+
+## Transaction edit
+
+- **`TransactionEditScreen`** — Includes **category** selection (list of `CategoryEntity` for the transaction’s month) plus merchant/amount/date/refund/dismissed/save/delete. Rule upsert + back-apply live on the **transactions list** assign flow, not as separate toggles on the edit screen.
+
 ## Strings / locales
 
 - Default: `res/values/strings.xml`; Arabic: `res/values-ar/strings.xml`.
-- Avoid editing `README.md`/PRD unless the user asks (per house rules).
 
 ## When changing Room
 
@@ -75,4 +84,4 @@ Schema is versioned with **destructive fallback** unless you add migrations — 
 
 ---
 
-*Last curated for agent handoffs; reconcile with git if this drifts.*
+*Last curated for agent handoffs.*
