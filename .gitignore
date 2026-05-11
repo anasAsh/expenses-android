@@ -49,3 +49,7 @@ fastlane/test_output
 *.log
 *.orig
 *~
+
+# Local SQLite backup blobs (exports or accidental copies in repo root; never commit)
+anas-budget-backup*.db
+anas-budget-daily-backup*.db
