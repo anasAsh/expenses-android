@@ -53,3 +53,6 @@ fastlane/test_output
 # Local SQLite backup blobs (exports or accidental copies in repo root; never commit)
 anas-budget-backup*.db
 anas-budget-daily-backup*.db
+
+# Tracked debug APK for distribution (narrow exception to *.apk)
+!artifacts/app-debug.apk
