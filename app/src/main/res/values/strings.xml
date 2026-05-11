@@ -13,8 +13,9 @@
     <string name="sms_permission_skip">Skip — manual entry</string>
 
     <string name="onboarding_welcome_title">Welcome</string>
-    <string name="onboarding_welcome_body">Set up your first budget category. You can add more later.</string>
-    <string name="onboarding_category_title">First category</string>
+    <string name="onboarding_welcome_body">You are set up with default budget categories so you can start tracking right away.</string>
+    <string name="onboarding_default_categories_kickstart">Here is what is already on your Home tab for this budget month:\n\n%1$s\n\nRename categories or change monthly targets anytime on Home. You can add more categories there too.</string>
+    <string name="onboarding_category_excluded_suffix">excluded from spend totals</string>
     <string name="category_name_label">Name</string>
     <string name="category_target_jod_label">Monthly target (JOD)</string>
     <string name="category_target_invalid">Enter a valid positive amount (up to 3 decimals).</string>
@@ -26,6 +27,10 @@
     <string name="category_edit_not_found">This category no longer exists.</string>
     <string name="category_excluded_label">Exclude from spend totals (e.g. transfers)</string>
     <string name="onboarding_finish">Start budgeting</string>
+    <string name="onboarding_sms_choose_then_proceed_hint">Allow SMS, skip it, then tap Start budgeting below to open the app.</string>
+    <string name="onboarding_sms_granted_proceed">SMS access is on.</string>
+    <string name="onboarding_sms_continue_without_sms_hint">You can still add expenses manually, or allow SMS later in system settings.</string>
+    <string name="onboarding_tap_start_budgeting_hint">Tap Start budgeting below to continue.</string>
 
     <string name="home_title">This month</string>
     <string name="home_month_total_budget">Total budget: %1$s JOD</string>
@@ -81,13 +86,21 @@
     <string name="settings_category_import_help">One category per line. Target is monthly JOD (e.g. 100 or 99.500).</string>
     <string name="settings_category_import_button">Import into current budget month</string>
     <string name="settings_category_import_result">Added %1$d · Skipped %2$d duplicates · %3$d lines with parse errors</string>
-    <string name="settings_export_db">Export database backup</string>
+    <string name="settings_export_db">Backup database (Google Drive)</string>
     <string name="settings_export_done">Backup saved.</string>
     <string name="settings_export_failed">Could not write backup.</string>
+    <string name="settings_daily_backup_status_on">Daily backup: on</string>
+    <string name="settings_daily_backup_status_off">Daily backup: off</string>
+    <string name="settings_daily_backup_enable">Enable daily backup</string>
+    <string name="settings_daily_backup_disable">Disable daily backup</string>
+    <string name="settings_daily_backup_enabled_done">Daily backup enabled.</string>
+    <string name="settings_daily_backup_enable_failed">Could not enable daily backup.</string>
+    <string name="settings_daily_backup_disabled_done">Daily backup disabled.</string>
+    <string name="settings_daily_backup_disable_failed">Could not disable daily backup.</string>
     <string name="settings_sms_backfill">Import recent Arab Bank SMS (60 days)</string>
     <string name="settings_backfill_done">Parsed %1$d messages from inbox.</string>
     <string name="settings_privacy_policy">Privacy policy (browser)</string>
-    <string name="settings_cloud_planned">Cloud backup (Google Drive) is planned for a later release. This build stores data on your device only.</string>
+    <string name="settings_cloud_planned">Choose Google Drive in the file picker to save a cloud backup.</string>
     <string name="settings_debug_paste_sms">Debug: parse pasted SMS</string>
     <string name="settings_paste_sms_hint">Paste one bank SMS body</string>
     <string name="settings_parse_pasted_sms">Parse and import</string>
@@ -109,4 +122,20 @@
     <string name="transaction_delete_body">This removes it from your budget and lists. This cannot be undone.</string>
     <string name="transaction_delete_confirm">Delete</string>
     <string name="transaction_edit_from_list">Open full transaction editor</string>
+
+    <!-- One-time tour after onboarding (first_launch_tour_completed in DataStore). -->
+    <string name="first_launch_tour_step_indicator">Step %1$d of %2$d</string>
+    <string name="first_launch_tour_skip">Skip</string>
+    <string name="first_launch_tour_next">Next</string>
+    <string name="first_launch_tour_done">Got it</string>
+    <string name="first_launch_tour_step1_title">Home: your budget</string>
+    <string name="first_launch_tour_step1_body">The Home tab shows each category, spending versus its monthly target, and your overall month total. Tap a category to focus transactions, or use the icons to edit targets and add categories.</string>
+    <string name="first_launch_tour_step2_title">Budget month</string>
+    <string name="first_launch_tour_step2_body">Use the month control on Home to switch the budget period you are viewing. Your targets and totals follow the selected month.</string>
+    <string name="first_launch_tour_step3_title">Transactions</string>
+    <string name="first_launch_tour_step3_body">The Transactions tab lists everything that counts in your budget. Add a manual line when you paid cash, tap a row to edit details, assign categories, or create merchant rules so future SMS lines sort themselves.</string>
+    <string name="first_launch_tour_step4_title">Settings</string>
+    <string name="first_launch_tour_step4_body">Allow bank SMS (if you want automatic imports), run a one-time SMS import, set daily backups, tune when your budget month starts, and adjust categories for the current month.</string>
+    <string name="first_launch_tour_step5_title">You are ready</string>
+    <string name="first_launch_tour_step5_body">You can skip this tour anytime with Skip. Explore the bottom tabs whenever you need—happy budgeting.</string>
 </resources>

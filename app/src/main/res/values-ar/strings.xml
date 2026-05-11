@@ -5,11 +5,16 @@
     <string name="nav_transactions">المعاملات</string>
     <string name="nav_settings">الإعدادات</string>
     <string name="onboarding_welcome_title">مرحباً</string>
-    <string name="onboarding_welcome_body">أضِف أول فئة ميزانية. يمكنك إضافة المزيد لاحقاً.</string>
-    <string name="onboarding_category_title">الفئة الأولى</string>
+    <string name="onboarding_welcome_body">جهّزنا لك فئات ميزانية افتراضية لتبدأ التتبع فوراً.</string>
+    <string name="onboarding_default_categories_kickstart">ما يلي موجود مسبقاً في الشاشة الرئيسية لشهر الميزانية الحالي:\n\n%1$s\n\nيمكنك إعادة تسمية الفئات أو تغيير الأهداف الشهرية في أي وقت من الرئيسية، وإضافة فئات جديدة من هناك أيضاً.</string>
+    <string name="onboarding_category_excluded_suffix">مستثناة من إجمالي الإنفاق</string>
     <string name="category_name_label">الاسم</string>
     <string name="category_target_jod_label">الهدف الشهري (دينار)</string>
     <string name="onboarding_finish">ابدأ الميزانية</string>
+    <string name="onboarding_sms_choose_then_proceed_hint">اسمح بالرسائل أو تخطّها، ثم اضغط «ابدأ الميزانية» في الأسفل للمتابعة.</string>
+    <string name="onboarding_sms_granted_proceed">تم تفعيل وصول الرسائل.</string>
+    <string name="onboarding_sms_continue_without_sms_hint">يمكنك الإضافة يدوياً، أو السماح بالرسائل لاحقاً من إعدادات النظام.</string>
+    <string name="onboarding_tap_start_budgeting_hint">اضغط «ابدأ الميزانية» في الأسفل للمتابعة.</string>
     <string name="home_title">هذا الشهر</string>
     <string name="home_month_total_budget">إجمالي الميزانية: %1$s دينار</string>
     <string name="home_month_remaining">المتبقي: %1$s دينار</string>
@@ -35,6 +40,16 @@
     <string name="settings_budget_cycle_help">اليوم 1: الميزانية حسب الشهر التقويمي. الأيام 2–28: الشهر المختار هو شهر الراتب/الميزانية؛ تبدأ الفترة في ذلك اليوم من الشهر السابق وتنتهي في اليوم السابق لذلك اليوم من الشهر المعروض (مثلاً 25 → أيار من 25 نيسان إلى 24 أيار). مسموح 1–28 فقط.</string>
     <string name="settings_budget_cycle_current">يوم البداية الحالي: %1$d</string>
     <string name="settings_budget_cycle_open_menu">اختر اليوم</string>
+    <string name="settings_export_db">نسخ احتياطي لقاعدة البيانات (Google Drive)</string>
+    <string name="settings_cloud_planned">اختر Google Drive من نافذة اختيار الملف لحفظ نسخة احتياطية سحابية.</string>
+    <string name="settings_daily_backup_status_on">نسخ احتياطي يومي: مفعّل</string>
+    <string name="settings_daily_backup_status_off">نسخ احتياطي يومي: متوقف</string>
+    <string name="settings_daily_backup_enable">تفعيل النسخ الاحتياطي اليومي</string>
+    <string name="settings_daily_backup_disable">إيقاف النسخ الاحتياطي اليومي</string>
+    <string name="settings_daily_backup_enabled_done">تم تفعيل النسخ الاحتياطي اليومي.</string>
+    <string name="settings_daily_backup_enable_failed">تعذر تفعيل النسخ الاحتياطي اليومي.</string>
+    <string name="settings_daily_backup_disabled_done">تم إيقاف النسخ الاحتياطي اليومي.</string>
+    <string name="settings_daily_backup_disable_failed">تعذر إيقاف النسخ الاحتياطي اليومي.</string>
     <string name="settings_category_import_title">استيراد الفئات</string>
     <string name="settings_category_import_label">سطر لكل فئة: الاسم : المبلغ</string>
     <string name="settings_category_import_help">فئة في كل سطر. الهدف شهري بالدينار (مثل 100 أو 99.500).</string>
@@ -69,4 +84,19 @@
     <string name="settings_categories_edit_help">عدّل الأسماء والأهداف الشهرية لشهر الميزانية الحالي (كما في الشاشة الرئيسية).</string>
     <string name="settings_category_budget_line">الهدف الشهري %1$s دينار</string>
     <string name="settings_category_edit_action">تعديل</string>
+
+    <string name="first_launch_tour_step_indicator">الخطوة %1$d من %2$d</string>
+    <string name="first_launch_tour_skip">تخطّي</string>
+    <string name="first_launch_tour_next">التالي</string>
+    <string name="first_launch_tour_done">تم</string>
+    <string name="first_launch_tour_step1_title">الرئيسية: ميزانيتك</string>
+    <string name="first_launch_tour_step1_body">تعرض الرئيسية كل فئة والإنفاق مقابل الهدف الشهري وإجمالي الشهر. اضغط فئة لتركيز المعاملات، أو استخدم الأيقونات لتعديل الأهداف وإضافة فئات.</string>
+    <string name="first_launch_tour_step2_title">شهر الميزانية</string>
+    <string name="first_launch_tour_step2_body">استخدم اختيار الشهر في الرئيسية لعرض فترة ميزانية أخرى. الأهداف والإجماليات تتبع الشهر المختار.</string>
+    <string name="first_launch_tour_step3_title">المعاملات</string>
+    <string name="first_launch_tour_step3_body">تعرض تبويب المعاملات كل ما يُحتسب في ميزانيتك. أضف سطراً يدوياً عند الدفع نقداً، واضغط صفاً لتعديل التفاصيل أو تعيين الفئات أو إنشاء قواعد للتاجر لترتيب رسائل البنك لاحقاً.</string>
+    <string name="first_launch_tour_step4_title">الإعدادات</string>
+    <string name="first_launch_tour_step4_body">اسمح برسائل البنك (للاستيراد التلقائي)، أو نفّذ استيراداً لمرة واحدة، وفعّل النسخ الاحتياطي اليومي، واضبط بداية شهر الميزانية، وعدّل الفئات للشهر الحالي.</string>
+    <string name="first_launch_tour_step5_title">جاهز للانطلاق</string>
+    <string name="first_launch_tour_step5_body">يمكنك تخطّي الجولة في أي وقت عبر «تخطّي». استخدم التبويبات السفلى متى احتجت—بالتوفيق في إدارة الميزانية.</string>
 </resources>
