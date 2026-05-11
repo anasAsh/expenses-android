@@ -50,6 +50,8 @@ import com.anasexpenses.budget.ui.onboarding.OnboardingScreen
 import com.anasexpenses.budget.ui.root.RootUiState
 import com.anasexpenses.budget.ui.root.RootViewModel
 import com.anasexpenses.budget.ui.theme.BudgetTheme
+import com.anasexpenses.budget.ui.tour.FirstLaunchTourOverlay
+import com.anasexpenses.budget.ui.tour.FirstLaunchTourViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -94,6 +96,8 @@ private fun BudgetAppEntry() {
 @Composable
 private fun BudgetRootScaffold() {
     val navController = rememberNavController()
+    val tourVm: FirstLaunchTourViewModel = hiltViewModel()
+    val tourCompleted by tourVm.tourCompleted.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = context as ComponentActivity
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -159,11 +163,11 @@ private fun BudgetRootScaffold() {
             }
         },
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = Route.Home.route,
-            modifier = Modifier.padding(innerPadding),
-        ) {
+        Box(modifier = Modifier.padding(innerPadding)) {
+            NavHost(
+                navController = navController,
+                startDestination = Route.Home.route,
+            ) {
             composable(
                 route = Route.Home.route,
                 deepLinks = listOf(
@@ -223,6 +227,13 @@ private fun BudgetRootScaffold() {
                 ),
             ) {
                 CategoryEditScreen(onClose = { navController.popBackStack() })
+            }
+            }
+            if (!tourCompleted) {
+                FirstLaunchTourOverlay(
+                    navController = navController,
+                    onFinish = { tourVm.markTourCompleted() },
+                )
             }
         }
     }

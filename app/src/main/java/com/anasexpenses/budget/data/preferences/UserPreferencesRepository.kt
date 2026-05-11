@@ -30,6 +30,7 @@ class UserPreferencesRepository @Inject constructor(
         val selectedYearMonth = stringPreferencesKey("selected_year_month")
         val budgetCycleStartDay = intPreferencesKey("budget_cycle_start_day")
         val dailyBackupTreeUri = stringPreferencesKey("daily_backup_tree_uri")
+        val firstLaunchTourCompleted = booleanPreferencesKey("first_launch_tour_completed")
     }
 
     /**
@@ -70,6 +71,9 @@ class UserPreferencesRepository @Inject constructor(
 
     val dailyBackupTreeUri: Flow<String?> = store.data.map { it[Keys.dailyBackupTreeUri] }
 
+    /** One-time post-onboarding UI tour; false until completed or skipped. */
+    val firstLaunchTourCompleted: Flow<Boolean> = store.data.map { it[Keys.firstLaunchTourCompleted] ?: false }
+
     suspend fun setOnboardingComplete(value: Boolean) {
         store.edit { it[Keys.onboardingComplete] = value }
     }
@@ -86,5 +90,9 @@ class UserPreferencesRepository @Inject constructor(
                 prefs[Keys.dailyBackupTreeUri] = uri
             }
         }
+    }
+
+    suspend fun setFirstLaunchTourCompleted(value: Boolean) {
+        store.edit { it[Keys.firstLaunchTourCompleted] = value }
     }
 }
