@@ -29,6 +29,7 @@ class UserPreferencesRepository @Inject constructor(
         val smsPermissionSkipped = booleanPreferencesKey("sms_permission_skipped")
         val selectedYearMonth = stringPreferencesKey("selected_year_month")
         val budgetCycleStartDay = intPreferencesKey("budget_cycle_start_day")
+        val dailyBackupTreeUri = stringPreferencesKey("daily_backup_tree_uri")
     }
 
     /**
@@ -67,11 +68,23 @@ class UserPreferencesRepository @Inject constructor(
 
     val smsPermissionSkipped: Flow<Boolean> = store.data.map { it[Keys.smsPermissionSkipped] ?: false }
 
+    val dailyBackupTreeUri: Flow<String?> = store.data.map { it[Keys.dailyBackupTreeUri] }
+
     suspend fun setOnboardingComplete(value: Boolean) {
         store.edit { it[Keys.onboardingComplete] = value }
     }
 
     suspend fun setSmsPermissionSkipped(value: Boolean) {
         store.edit { it[Keys.smsPermissionSkipped] = value }
+    }
+
+    suspend fun setDailyBackupTreeUri(uri: String?) {
+        store.edit { prefs ->
+            if (uri.isNullOrBlank()) {
+                prefs.remove(Keys.dailyBackupTreeUri)
+            } else {
+                prefs[Keys.dailyBackupTreeUri] = uri
+            }
+        }
     }
 }

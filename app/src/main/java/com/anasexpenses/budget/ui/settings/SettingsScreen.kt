@@ -41,6 +41,7 @@ fun SettingsScreen(
 ) {
     val smsRows by viewModel.smsTransactionRows.collectAsStateWithLifecycle()
     val manualRows by viewModel.manualTransactionRows.collectAsStateWithLifecycle()
+    val dailyBackupTreeUri by viewModel.dailyBackupTreeUri.collectAsStateWithLifecycle()
     val cycleDay by viewModel.budgetCycleStartDay.collectAsStateWithLifecycle()
     var cycleMenuOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -54,6 +55,17 @@ fun SettingsScreen(
             viewModel.exportToUri(uri) { ok ->
                 status = context.getString(
                     if (ok) R.string.settings_export_done else R.string.settings_export_failed,
+                )
+            }
+        }
+    }
+    val pickBackupFolder = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.setDailyBackupFolder(uri) { ok ->
+                status = context.getString(
+                    if (ok) R.string.settings_daily_backup_enabled_done else R.string.settings_daily_backup_enable_failed,
                 )
             }
         }
@@ -116,6 +128,44 @@ fun SettingsScreen(
             Text(stringResource(R.string.settings_export_db))
         }
 
+        Text(
+            stringResource(R.string.settings_cloud_planned),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            stringResource(
+                if (dailyBackupTreeUri.isNullOrBlank()) {
+                    R.string.settings_daily_backup_status_off
+                } else {
+                    R.string.settings_daily_backup_status_on
+                },
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (dailyBackupTreeUri.isNullOrBlank()) {
+            Button(
+                onClick = { pickBackupFolder.launch(null) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.settings_daily_backup_enable))
+            }
+        } else {
+            Button(
+                onClick = {
+                    viewModel.disableDailyBackup { ok ->
+                        status = context.getString(
+                            if (ok) R.string.settings_daily_backup_disabled_done else R.string.settings_daily_backup_disable_failed,
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.settings_daily_backup_disable))
+            }
+        }
+
         Button(
             onClick = {
                 viewModel.runInboxBackfill { n ->
@@ -135,12 +185,6 @@ fun SettingsScreen(
         ) {
             Text(stringResource(R.string.settings_privacy_policy))
         }
-
-        Text(
-            stringResource(R.string.settings_cloud_planned),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

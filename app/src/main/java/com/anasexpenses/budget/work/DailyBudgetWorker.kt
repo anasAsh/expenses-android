@@ -1,6 +1,7 @@
 package com.anasexpenses.budget.work
 
 import android.content.Context
+import android.net.Uri
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.anasexpenses.budget.domain.time.BudgetCycle
@@ -22,6 +23,22 @@ class DailyBudgetWorker(
         val cycleStartDay = ep.userPreferencesRepository().budgetCycleStartDay.first()
         val ym = BudgetCycle.labeledYearMonthForDate(LocalDate.now(), cycleStartDay)
         ep.budgetAlertCoordinator().refreshAlerts(ym)
+        val backupTreeUri = ep.userPreferencesRepository().dailyBackupTreeUri.first()
+        if (!backupTreeUri.isNullOrBlank()) {
+            val backupOk = runCatching {
+                ep.databaseExportHelper().checkpointAndCopyToTreeUri(
+                    treeUri = Uri.parse(backupTreeUri),
+                    fileName = DAILY_BACKUP_FILE_NAME,
+                )
+            }.isSuccess
+            if (!backupOk) {
+                return Result.retry()
+            }
+        }
         return Result.success()
+    }
+
+    companion object {
+        private const val DAILY_BACKUP_FILE_NAME = "anas-budget-daily-backup.db"
     }
 }

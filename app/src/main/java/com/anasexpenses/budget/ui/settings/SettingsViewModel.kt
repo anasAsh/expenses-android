@@ -16,6 +16,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -55,12 +56,50 @@ class SettingsViewModel @Inject constructor(
             0L,
         )
 
+    val dailyBackupTreeUri: StateFlow<String?> =
+        userPreferencesRepository.dailyBackupTreeUri.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            null,
+        )
+
     fun exportToUri(uri: Uri, onDone: (Boolean) -> Unit) {
         viewModelScope.launch {
             val ok = runCatching {
                 context.contentResolver.openOutputStream(uri)?.use { out ->
                     databaseExportHelper.checkpointAndCopyTo(out)
                 } ?: error("no stream")
+            }.isSuccess
+            onDone(ok)
+        }
+    }
+
+    fun setDailyBackupFolder(uri: Uri, onDone: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val ok = runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+                userPreferencesRepository.setDailyBackupTreeUri(uri.toString())
+            }.isSuccess
+            onDone(ok)
+        }
+    }
+
+    fun disableDailyBackup(onDone: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val ok = runCatching {
+                val current = userPreferencesRepository.dailyBackupTreeUri.first()
+                if (!current.isNullOrBlank()) {
+                    runCatching {
+                        context.contentResolver.releasePersistableUriPermission(
+                            Uri.parse(current),
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                        )
+                    }
+                }
+                userPreferencesRepository.setDailyBackupTreeUri(null)
             }.isSuccess
             onDone(ok)
         }

@@ -1,6 +1,7 @@
 package com.anasexpenses.budget.work
 
 import com.anasexpenses.budget.alerts.BudgetAlertCoordinator
+import com.anasexpenses.budget.data.export.DatabaseExportHelper
 import com.anasexpenses.budget.data.preferences.UserPreferencesRepository
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -11,4 +12,5 @@ import dagger.hilt.components.SingletonComponent
 interface BudgetWorkerEntryPoint {
     fun budgetAlertCoordinator(): BudgetAlertCoordinator
     fun userPreferencesRepository(): UserPreferencesRepository
+    fun databaseExportHelper(): DatabaseExportHelper
 }
