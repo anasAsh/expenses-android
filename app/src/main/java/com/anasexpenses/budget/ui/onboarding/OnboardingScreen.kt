@@ -5,42 +5,62 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.anasexpenses.budget.R
+import com.anasexpenses.budget.domain.category.DefaultCategorySeeds
+
+private enum class SmsStepOutcome {
+    None,
+    Granted,
+    DeniedOrPartial,
+    Skipped,
+}
 
 @Composable
 fun OnboardingScreen(
     modifier: Modifier = Modifier,
     viewModel: OnboardingViewModel = hiltViewModel(),
 ) {
+    var smsOutcome by remember { mutableStateOf(SmsStepOutcome.None) }
+
     val smsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { /* granted map ignored — user can still finish manually */ }
+    ) { result ->
+        smsOutcome =
+            if (result.isNotEmpty() && result.values.all { granted -> granted }) {
+                SmsStepOutcome.Granted
+            } else {
+                SmsStepOutcome.DeniedOrPartial
+            }
+    }
 
-    var categoryName by remember { mutableStateOf("") }
-    var targetText by remember { mutableStateOf("") }
-    var excluded by remember { mutableStateOf(false) }
-    var targetError by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        viewModel.ensureStarterCategoriesIfNeeded()
+    }
+
+    val excludedFromSpendSuffix = stringResource(R.string.onboarding_category_excluded_suffix)
+    val defaultCategoryBullets = DefaultCategorySeeds.rows.joinToString("\n") { row ->
+        val suffix = if (row.excludedFromSpend) " ($excludedFromSpendSuffix)" else ""
+        "• ${row.name}$suffix"
+    }
 
     Column(
         modifier = modifier
@@ -56,6 +76,11 @@ fun OnboardingScreen(
         Text(
             text = stringResource(R.string.onboarding_welcome_body),
             style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            text = stringResource(R.string.onboarding_default_categories_kickstart, defaultCategoryBullets),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         Text(
@@ -80,65 +105,54 @@ fun OnboardingScreen(
             Text(stringResource(R.string.sms_permission_grant))
         }
         Button(
-            onClick = { viewModel.markSmsSkipped() },
+            onClick = {
+                viewModel.markSmsSkipped()
+                smsOutcome = SmsStepOutcome.Skipped
+            },
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(R.string.sms_permission_skip))
         }
 
-        Text(
-            text = stringResource(R.string.onboarding_category_title),
-            style = MaterialTheme.typography.titleMedium,
-        )
-        OutlinedTextField(
-            value = categoryName,
-            onValueChange = { categoryName = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.category_name_label)) },
-            singleLine = true,
-        )
-        OutlinedTextField(
-            value = targetText,
-            onValueChange = { targetText = it; targetError = false },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.category_target_jod_label)) },
-            supportingText = if (targetError) {
-                { Text(stringResource(R.string.category_target_invalid)) }
-            } else null,
-            isError = targetError,
-            singleLine = true,
-        )
-        RowSwitch(
-            label = stringResource(R.string.category_excluded_label),
-            checked = excluded,
-            onCheckedChange = { excluded = it },
-        )
+        when (smsOutcome) {
+            SmsStepOutcome.Granted -> {
+                Text(
+                    text = stringResource(R.string.onboarding_sms_granted_proceed),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = stringResource(R.string.onboarding_tap_start_budgeting_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            SmsStepOutcome.DeniedOrPartial, SmsStepOutcome.Skipped -> {
+                Text(
+                    text = stringResource(R.string.onboarding_sms_continue_without_sms_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = stringResource(R.string.onboarding_tap_start_budgeting_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            SmsStepOutcome.None -> {
+                Text(
+                    text = stringResource(R.string.onboarding_sms_choose_then_proceed_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
 
-        Button(
-            onClick = {
-                viewModel.finishFirstCategory(categoryName, targetText, excluded) {
-                    targetError = true
-                }
-            },
+        FilledTonalButton(
+            onClick = { viewModel.finishOnboarding() },
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(R.string.onboarding_finish))
         }
-    }
-}
-
-@Composable
-private fun RowSwitch(
-    label: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(label, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
