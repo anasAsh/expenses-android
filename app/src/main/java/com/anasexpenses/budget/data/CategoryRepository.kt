@@ -8,7 +8,11 @@ import com.anasexpenses.budget.data.local.dao.CategoryDao
 import com.anasexpenses.budget.data.local.dao.RuleDao
 import com.anasexpenses.budget.data.local.dao.TransactionDao
 import com.anasexpenses.budget.data.local.entity.CategoryEntity
+import com.anasexpenses.budget.data.local.entity.RuleEntity
+import com.anasexpenses.budget.data.local.entity.RuleSource
 import com.anasexpenses.budget.data.preferences.UserPreferencesRepository
+import com.anasexpenses.budget.domain.category.DefaultCategorySeeds
+import com.anasexpenses.budget.domain.merchant.MerchantRuleSeeds
 import java.time.YearMonth
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -29,6 +33,50 @@ class CategoryRepository @Inject constructor(
     suspend fun getById(id: Long): CategoryEntity? = categoryDao.getById(id)
 
     suspend fun getByMonth(month: String): List<CategoryEntity> = categoryDao.getByMonth(month)
+
+    /**
+     * If [month] has no categories yet, inserts [DefaultCategorySeeds] once. Safe to call repeatedly.
+     */
+    suspend fun ensureDefaultCategoriesForMonth(monthKey: String) {
+        if (categoryDao.getByMonth(monthKey).isNotEmpty()) return
+        val now = System.currentTimeMillis()
+        db.withTransaction {
+            for (row in DefaultCategorySeeds.rows) {
+                categoryDao.insert(
+                    CategoryEntity(
+                        month = monthKey,
+                        name = row.name,
+                        monthlyTargetMilliJod = row.monthlyTargetMilliJod,
+                        excludedFromSpend = row.excludedFromSpend,
+                        createdAtEpochMillis = now,
+                    ),
+                )
+            }
+        }
+        alertCoordinator.refreshAlerts(YearMonth.parse(monthKey))
+    }
+
+    /**
+     * Inserts or replaces merchant rules for [MerchantRuleSeeds] against categories in [monthKey]
+     * matched by **exact** category name. Skips a seed if that category name is missing in the month.
+     * Idempotent per token ([RuleDao.insertReplace]).
+     */
+    suspend fun ensureMerchantRuleSeedsForMonth(monthKey: String) {
+        val cats = categoryDao.getByMonth(monthKey)
+        val idByName = cats.associateBy({ it.name }, { it.id })
+        val now = System.currentTimeMillis()
+        for ((token, defaultCategoryName) in MerchantRuleSeeds.pairs) {
+            val categoryId = idByName[defaultCategoryName] ?: continue
+            ruleDao.insertReplace(
+                RuleEntity(
+                    merchantToken = token,
+                    categoryId = categoryId,
+                    source = RuleSource.SEED,
+                    createdAtEpochMillis = now,
+                ),
+            )
+        }
+    }
 
     suspend fun addCategory(
         month: String,
